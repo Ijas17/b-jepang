@@ -1,0 +1,100 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background-custom: hsl(201, 100%, 13%);
+  --color-foreground-custom: hsl(0, 0%, 100%);
+  --color-muted-foreground-custom: hsl(240, 4%, 66%);
+  --color-primary-custom: hsl(0, 0%, 100%);
+  --color-primary-foreground-custom: hsl(0, 0%, 4%);
+  --color-secondary-custom: hsl(0, 0%, 10%);
+  --color-muted-custom: hsl(0, 0%, 10%);
+  --color-accent-custom: hsl(0, 0%, 10%);
+  --color-border-custom: hsl(0, 0%, 18%);
+  --color-input-custom: hsl(0, 0%, 18%);
+  
+  --font-display: "Instrument Serif", serif;
+  --font-sans: "Inter", sans-serif;
+}
+
+body {
+  background-color: hsl(201, 100%, 13%);
+  color: hsl(0, 0%, 100%);
+  font-family: var(--font-sans), sans-serif;
+  overflow-x: hidden;
+}
+
+.font-display {
+  font-family: var(--font-display), serif;
+}
+
+/* Liquid Glass CSS yang wajib dipakai */
+.liquid-glass {
+  background: rgba(255, 255, 255, 0.02);
+  background-blend-mode: luminosity;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: none;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.liquid-glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.4px;
+  background: linear-gradient(180deg,
+    rgba(255,255,255,0.45) 0%,
+    rgba(255,255,255,0.15) 20%,
+    rgba(255,255,255,0) 40%,
+    rgba(255,255,255,0) 60%,
+    rgba(255,255,255,0.15) 80%,
+    rgba(255,255,255,0.45) 100%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Animations CSS */
+@keyframes fade-rise {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-rise {
+  animation: fade-rise 0.8s ease-out both;
+}
+
+.animate-fade-rise-delay {
+  animation: fade-rise 0.8s ease-out 0.2s both;
+}
+
+.animate-fade-rise-delay-2 {
+  animation: fade-rise 0.8s ease-out 0.4s both;
+}
+
+/* Helper Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
