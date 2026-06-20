@@ -14,6 +14,9 @@ import { ALL_LESSONS } from '../data/lessonsData';
 import { VOCABULARY_DATABASE } from '../data/vocabulary';
 import { KANA_DATA } from '../data/kana';
 import { lessons } from '../data/curriculum';
+import KanaTrainer from './KanaTrainer';
+import KanjiLibrary from './KanjiLibrary';
+import DailyPlanner from './DailyPlanner';
 
 interface ClassroomProps {
   onBackToLanding: () => void;
@@ -21,7 +24,7 @@ interface ClassroomProps {
 }
 
 export default function Classroom({ onBackToLanding, isFocusModeActive }: ClassroomProps) {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'kana' | 'materi' | 'vocab' | 'quiz' | 'game' | 'tips'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'kanatrainer' | 'kana' | 'kanji' | 'materi' | 'vocab' | 'quiz' | 'game' | 'tips'>('dashboard');
   const [kanaType, setKanaType] = useState<'hiragana' | 'katakana'>('hiragana');
   const [kanaSubTab, setKanaSubTab] = useState<'dasar' | 'varian' | 'kombinasi'>('dasar');
 
@@ -43,6 +46,52 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
   const [selectedLesson, setSelectedLesson] = useState<number>(1);
   const [activeSectionUnderLesson, setActiveSectionUnderLesson] = useState<'kosakata' | 'tata' | 'dialog' | 'latihan' | 'kuis' | 'review'>('kosakata');
   const [streakCount, setStreakCount] = useState<number>(12);
+
+  // State for User Progress Store
+  const [userXP, setUserXP] = useState<number>(() => {
+    const saved = localStorage.getItem('n4_user_xp');
+    return saved ? parseInt(saved, 10) : 180; // starts with 180 XP
+  });
+  const [userLevel, setUserLevel] = useState<number>(() => {
+    const saved = localStorage.getItem('n4_user_level');
+    return saved ? parseInt(saved, 10) : 1; // starts with level 1
+  });
+  const [unlockedBadges, setUnlockedBadges] = useState<string[]>(() => {
+    const saved = localStorage.getItem('n4_user_badges');
+    return saved ? JSON.parse(saved) : ["Selamat Datang 🌸"]; // first starter badge
+  });
+
+  const addXP = (amount: number) => {
+    setUserXP(prevXP => {
+      const newXP = prevXP + amount;
+      localStorage.setItem('n4_user_xp', newXP.toString());
+      
+      const newLevel = Math.floor(newXP / 200) + 1;
+      if (newLevel > userLevel) {
+        setUserLevel(newLevel);
+        localStorage.setItem('n4_user_level', newLevel.toString());
+        triggerTick(1200);
+        setTimeout(() => triggerTick(1500), 150);
+      }
+      return newXP;
+    });
+  };
+
+  const unlockBadge = (badgeName: string) => {
+    setUnlockedBadges(prev => {
+      if (prev.includes(badgeName)) return prev;
+      const updated = [...prev, badgeName];
+      localStorage.setItem('n4_user_badges', JSON.stringify(updated));
+      triggerTick(1600);
+      return updated;
+    });
+  };
+
+  useEffect(() => {
+    if (streakCount >= 13) {
+      unlockBadge('Streak Pemula 🔥');
+    }
+  }, [streakCount]);
 
   // Dashboard / Lesson Completion States
   const [lessonCompletion, setLessonCompletion] = useState<Record<number, number>>(() => {
@@ -391,6 +440,23 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
     }
   };
 
+  // Handle Speech synthesis of Japanese characters / words / sentences
+  const speakText = (text: string) => {
+    try {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = 'ja-JP';
+        utter.rate = 0.8;
+        window.speechSynthesis.speak(utter);
+        unlockBadge('Master Pelafalan 🗣️');
+      }
+    } catch (e) {
+      console.warn('Speech synthesis error:', e);
+    }
+    triggerTick(600);
+  };
+
   // ==========================================
   // PROGRESSIVE TIMED GAME STATE (LEVELING!)
   // ==========================================
@@ -531,10 +597,12 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
       </div>
 
       {/* Classroom Segmentation Navigation Panels */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-9 gap-3 mb-8">
         {[
           { id: 'dashboard', label: 'Dashboard Kelas Pro', icon: <LayoutDashboard className="w-4 h-4" /> },
+          { id: 'kanatrainer', label: 'Kana Trainer Pro', icon: <Sparkles className="w-4 h-4 text-purple-400" /> },
           { id: 'kana', label: 'Tabel Kana Lengkap', icon: <Globe className="w-4 h-4" /> },
+          { id: 'kanji', label: 'Perpustakaan Kanji', icon: <Brain className="w-4 h-4 text-sky-450 animate-pulse" /> },
           { id: 'materi', label: 'Materi Komplit & Detail', icon: <BookOpen className="w-4 h-4" /> },
           { id: 'vocab', label: 'Kamus Kosakata N5-N4', icon: <Languages className="w-4 h-4" /> },
           { id: 'quiz', label: 'Quiz Engine Pro', icon: <Award className="w-4 h-4" /> },
@@ -618,115 +686,161 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
         return (
           <div id="classroom-dashboard-module" className="animate-fade-rise space-y-8">
             {/* Top overview statistics bento grid banner */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
               
               {/* Box 1: Beautiful Glowing Circle Progress Indicator */}
-              <div className="lg:col-span-5 liquid-glass rounded-3xl p-6 sm:p-8 border border-white/5 flex flex-col sm:flex-row items-center gap-6 justify-center text-center sm:text-left">
+              <div className="liquid-glass rounded-3xl p-6 border border-white/5 flex flex-col items-center justify-center text-center">
                 
                 {/* SVG Progress Circle SVG */}
-                <div className="relative w-36 h-36 flex items-center justify-center shrink-0">
+                <div className="relative w-32 h-32 flex items-center justify-center shrink-0 mb-4">
                   <svg className="w-full h-full transform -rotate-90">
-                    {/* Background Circle channel */}
                     <circle 
-                      cx="72" 
-                      cy="72" 
-                      r={radius} 
+                      cx="64" 
+                      cy="64" 
+                      r="50" 
                       className="stroke-white/5 fill-none" 
-                      strokeWidth="10" 
+                      strokeWidth="8" 
                     />
-                    {/* Glowing Accent Progress Channel */}
                     <circle 
-                      cx="72" 
-                      cy="72" 
-                      r={radius} 
+                      cx="64" 
+                      cy="64" 
+                      r="50" 
                       className="stroke-indigo-500 transition-all duration-1000 ease-out fill-none" 
-                      strokeWidth="10"
-                      strokeDasharray={circumference}
-                      strokeDashoffset={strokeDashoffset}
+                      strokeWidth="8"
+                      strokeDasharray={2 * Math.PI * 50}
+                      strokeDashoffset={(2 * Math.PI * 50) - ((2 * Math.PI * 50) * averageCompletion) / 100}
                       strokeLinecap="round"
                     />
                   </svg>
                   
                   {/* Absolute Center percentage display text */}
                   <div className="absolute flex flex-col items-center justify-center">
-                    <span className="text-3xl font-mono font-black text-white">{averageCompletion}%</span>
-                    <span className="text-[9px] uppercase tracking-wider text-zinc-500 font-bold">Rerata Bab</span>
+                    <span className="text-2xl font-mono font-black text-white">{averageCompletion}%</span>
+                    <span className="text-[8px] uppercase tracking-wider text-zinc-500 font-bold">Rerata Bab</span>
                   </div>
                 </div>
 
                 {/* Meta details adjacent */}
-                <div className="space-y-3 flex-1">
-                  <span className="text-[10px] uppercase font-mono font-bold tracking-widest text-zinc-500 block">Status Akademik</span>
-                  <h3 className="text-xl font-display text-white leading-tight font-normal">Pemantau Kurikulum 25 Bab</h3>
+                <div className="space-y-2 text-center w-full">
+                  <span className="text-[9px] uppercase font-mono font-bold tracking-widest text-zinc-500 block">Status Akademik</span>
+                  <h3 className="text-base font-display text-white font-normal">Pemantau Kurikulum 25 Bab</h3>
                   
                   {/* Dynamic Class level label status */}
-                  <div className={`px-3 py-1.5 rounded-xl border text-[11px] font-sans font-medium ${levelColor} inline-block leading-tight`}>
+                  <div className={`px-2.5 py-1 rounded-xl border text-[10px] font-sans font-medium ${levelColor} inline-block leading-tight`}>
                     🛡️ {studyLevelBadge}
                   </div>
-
-                  <p className="text-[11px] text-zinc-400 font-light font-sans leading-relaxed max-w-xs">
-                    Rata-rata progres didasarkan pada tingkat penyelesaian masing-masing dari 25 bab pelajaran Minna No Nihongo N5-N4.
-                  </p>
                 </div>
 
               </div>
 
-              {/* Box 2: Gorgeous Streak & Weekly Attendance Calender */}
-              <div className="lg:col-span-7 liquid-glass rounded-3xl p-6 sm:p-8 border border-white/5 space-y-5 flex flex-col justify-between">
+              {/* Box 2: User Progress Store (XP Status & Badges Collection) */}
+              <div className="liquid-glass rounded-3xl p-6 border border-white/5 space-y-4 flex flex-col justify-between text-left">
+                <div className="space-y-1">
+                  <span className="text-[9px] uppercase font-mono font-bold tracking-widest text-zinc-500 block">Level Kompetensi & XP</span>
+                  <h3 className="text-base font-display text-white font-normal flex items-center gap-1.5">
+                    <Award className="w-4 h-4 text-yellow-400 animate-pulse" /> Level {userLevel} Gakusei
+                  </h3>
+                </div>
+
+                {/* XP Progress Bar */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center text-[10px] text-zinc-400 font-mono">
+                    <span>Pengalaman (XP)</span>
+                    <span>{userXP % 200} / 200 XP</span>
+                  </div>
+                  <div className="w-full bg-slate-950/80 h-2 rounded-full overflow-hidden border border-white/5 relative">
+                    <div 
+                      className="h-full bg-gradient-to-r from-yellow-400 to-indigo-500 transition-all duration-500" 
+                      style={{ width: `${((userXP % 200) / 200) * 100}%` }}
+                    />
+                  </div>
+                  <span className="text-[9px] text-zinc-500 font-light block leading-relaxed">
+                    Total <strong>{userXP} XP</strong> terakumulasi. Selesaikan kuiz, canvas kanji & target Planner untuk menaikkan level!
+                  </span>
+                </div>
+
+                {/* Badges list */}
+                <div className="space-y-1.5 pt-2 border-t border-white/5">
+                  <span className="text-[9px] uppercase font-mono font-bold tracking-wider text-zinc-500 block">Lencana Tercapai ({unlockedBadges.length})</span>
+                  <div className="flex flex-wrap gap-1 max-h-[75px] overflow-y-auto pr-1">
+                    {unlockedBadges.map((badge, idx) => (
+                      <span 
+                        key={idx}
+                        className="text-[9px] px-2 py-0.5 rounded-lg bg-indigo-500/10 border border-indigo-400/15 text-indigo-300 font-bold flex items-center gap-0.5"
+                      >
+                        ⭐ {badge}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Box 3: Gorgeous Streak & Weekly Attendance Calendar */}
+              <div className="liquid-glass rounded-3xl p-6 border border-white/5 space-y-4 flex flex-col justify-between">
                 
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                  <div className="text-left">
-                    <h3 className="text-lg font-display text-white font-normal flex items-center gap-2">
-                      <Flame className="w-5 h-5 text-amber-500 animate-bounce" /> Kalender Streak & Kehadiran
+                <div className="flex justify-between items-start gap-2">
+                  <div className="text-left space-y-1">
+                    <h3 className="text-base font-display text-white font-normal flex items-center gap-1.5">
+                      <Flame className="w-4 h-4 text-amber-500 animate-bounce" /> Streak Kehadiran
                     </h3>
-                    <p className="text-xs text-zinc-400 font-light font-sans max-w-sm mt-0.5">
-                      Catat aktivitas harian Anda. Centang kotak harian sebagai tanda komitmen belajar, sistem akan mencatat kenaikan jumlah study streak harian Anda!
+                    <p className="text-[10px] text-zinc-400 font-light font-sans leading-normal">
+                      Konsistensi belajar harian. Centang kotak kehadiran sebagai komitmen belajar.
                     </p>
                   </div>
 
                   {/* Gigantic Fire Counter */}
-                  <div className="bg-amber-550/10 border border-amber-500/20 px-5 py-3 rounded-2xl flex items-center gap-3 shrink-0 self-stretch sm:self-auto justify-center">
-                    <Flame className="w-8 h-8 text-amber-500 animate-pulse" />
-                    <div className="text-left">
-                      <span className="text-[9px] text-zinc-500 uppercase tracking-widest font-extrabold block">Pencapaian Beruntun</span>
-                      <span className="text-2xl font-mono font-black text-amber-450 leading-none">{streakCount} HARI</span>
+                  <div className="bg-amber-550/10 border border-amber-500/20 px-3 py-1.5 rounded-xl flex items-center gap-1.5 shrink-0">
+                    <Flame className="w-5 h-5 text-amber-500 animate-pulse" />
+                    <div className="text-left font-mono">
+                      <span className="text-[8px] text-zinc-500 uppercase block">Streak</span>
+                      <span className="text-sm font-black text-amber-450 leading-none">{streakCount} H</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Calendar grid for attendance */}
-                <div className="grid grid-cols-7 gap-2">
+                <div className="grid grid-cols-7 gap-1">
                   {Object.entries(weeklyAttendance).map(([day, checked]) => (
                     <button
                       key={day}
                       onClick={() => handleToggleAttendance(day)}
-                      className={`p-3.5 rounded-2xl border transition-all duration-300 relative overflow-hidden group cursor-pointer flex flex-col items-center justify-between gap-2 ${
+                      className={`p-2.5 rounded-xl border transition-all duration-300 relative overflow-hidden group cursor-pointer flex flex-col items-center justify-between gap-1.5 ${
                         checked 
                           ? 'bg-amber-500/10 border-amber-500/30 text-amber-300' 
                           : 'bg-white/2 hover:bg-white/5 border-white/5 text-zinc-400 hover:text-white'
                       }`}
                     >
-                      <span className="text-[10px] font-semibold tracking-wider uppercase font-sans">{day.slice(0, 3)}</span>
+                      <span className="text-[8px] font-semibold tracking-wider uppercase font-sans">{day.slice(0, 3)}</span>
                       
-                      <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${
+                      <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
                         checked 
                           ? 'bg-amber-500 border-amber-400 text-slate-950 scale-105' 
-                          : 'bg-slate-950/40 border-white/10 text-transparent group-hover:border-white/20'
+                          : 'bg-slate-950/45 border-white/10 text-transparent group-hover:border-white/20'
                       }`}>
-                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                        <Check className="w-3 stroke-[3]" />
                       </div>
                     </button>
                   ))}
                 </div>
 
                 {/* Motivational Footnote */}
-                <div className="flex items-center gap-2 text-[11px] text-zinc-400 font-light">
-                  <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span>Tips Belajar: Konsistensi 15 menit sehari jauh lebih efektif daripada 5 jam sekaligus seminggu sekali! Ganbatte kudasai!</span>
+                <div className="flex items-center gap-1.5 text-[10px] text-zinc-400 font-light leading-snug">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                  <span>Tips Belajar: Konsistensi 15 menit sehari jauh lebih efektif!</span>
                 </div>
 
               </div>
 
+            </div>
+
+            {/* PERSONALIZED DAILY PLANNER SECTION */}
+            <div className="liquid-glass rounded-3xl p-6 border border-white/5">
+              <DailyPlanner 
+                lessonCompletion={lessonCompletion}
+                onAddXP={addXP}
+                onUnlockBadge={unlockBadge}
+                onTriggerSound={triggerTick}
+              />
             </div>
 
             {/* SECTION 2: THE 25 LESSONS DETAILED COMPLETION TRACKER GRID */}
@@ -914,6 +1028,36 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
           </div>
         );
       })()}
+
+      {/* ======================================================== */}
+      {/* MODULE KANA TRAINER: FLASHCARD, INTERACTIVE QUIZ, CANVAS */}
+      {/* ======================================================== */}
+      {activeTab === 'kanatrainer' && (
+        <div id="classroom-kana-trainer-module" className="animate-fade-rise space-y-6">
+          <div className="liquid-glass rounded-3xl p-6 sm:p-10 border border-white/5">
+            <KanaTrainer 
+              onTriggerSound={(freq) => { triggerTick(freq); }}
+              onIncrementStreak={() => { setStreakCount(prev => prev + 1); }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODULE KANJI LIBRARY: BROWSE, STROKE, & INTERACTIVE QUIZ */}
+      {/* ======================================================== */}
+      {activeTab === 'kanji' && (
+        <div id="classroom-kanji-library-module" className="animate-fade-rise space-y-6">
+          <div className="liquid-glass rounded-3xl p-6 sm:p-10 border border-white/5">
+            <KanjiLibrary 
+              onTriggerSound={(freq) => { triggerTick(freq); }}
+              onIncrementStreak={() => { setStreakCount(prev => prev + 1); }}
+              onAddXP={addXP}
+              onUnlockBadge={unlockBadge}
+            />
+          </div>
+        </div>
+      )}
 
       {/* ======================================================== */}
       {/* MODULE 1: TABEL KANA LENGKAP + VARIAN + KOMBINASI */}
@@ -1148,8 +1292,9 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
                               <p className="text-[10px] text-zinc-500 italic mt-0.5">{v.desc}</p>
                             </div>
                             <button 
-                              onClick={() => playKanaSound(v.jp, v.rom.toLowerCase())}
-                              className="p-2 h-8 w-8 rounded-full border border-white/5 bg-white/5 hover:bg-white/10 active:scale-95 transition-all text-zinc-300 hover:text-white flex items-center justify-center cursor-pointer shrink-0"
+                              onClick={() => speakText(v.jp)}
+                              title="Lafalkan Suara Asli (TTS)"
+                              className="p-2 h-8 w-8 rounded-full border border-indigo-500/25 bg-indigo-550/10 hover:bg-indigo-500 hover:text-white text-indigo-300 active:scale-95 transition-all flex items-center justify-center cursor-pointer shrink-0 animate-pulse"
                             >
                               <Volume2 className="w-3.5 h-3.5" />
                             </button>
@@ -1189,13 +1334,22 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
                               {gp.explanation}
                             </p>
                             
-                            {/* Standard Usage Examples */}
-                            <div className="bg-slate-950/40 p-4 rounded-xl border border-white/5 space-y-1 text-left">
-                              <span className="text-[10px] uppercase font-bold tracking-widest text-zinc-500 block">Kalimat Contoh:</span>
-                              <span className="text-base text-white font-mono block select-all">{gp.exJp}</span>
-                              <p className="text-xs text-zinc-400 font-mono italic">({gp.exRom})</p>
-                              <span className="text-xs text-zinc-300 block mt-1">Artinya: "{gp.exId}"</span>
-                            </div>
+                             {/* Standard Usage Examples */}
+                             <div className="bg-slate-950/40 p-4 rounded-xl border border-white/5 space-y-1 text-left relative group">
+                               <div className="flex justify-between items-start">
+                                 <span className="text-[10px] uppercase font-bold tracking-widest text-zinc-500 block">Kalimat Contoh:</span>
+                                 <button
+                                   type="button"
+                                   onClick={() => speakText(gp.exJp)}
+                                   className="px-2.5 py-1 bg-indigo-500/10 hover:bg-indigo-600 border border-indigo-500/20 rounded-lg text-indigo-300 hover:text-white text-[10px] uppercase font-bold transition-all cursor-pointer flex items-center gap-1.5"
+                                 >
+                                   <Volume2 className="w-3 h-3 animate-pulse" /> Lafalkan (TTS)
+                                 </button>
+                               </div>
+                               <span className="text-base text-white font-mono block select-all mt-1">{gp.exJp}</span>
+                               <p className="text-xs text-zinc-400 font-mono italic">({gp.exRom})</p>
+                               <span className="text-xs text-zinc-300 block mt-1">Artinya: "{gp.exId}"</span>
+                             </div>
 
                             {/* Common mistake block */}
                             {gp.commonMistakeJp && (
@@ -1475,8 +1629,12 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
                             <button
                               onClick={() => {
                                 if (quizSelectedAnswer) {
-                                  triggerTick(quizSelectedAnswer === lessonQuiz.answer ? 880 : 150);
+                                  const isCorrect = quizSelectedAnswer === lessonQuiz.answer;
+                                  triggerTick(isCorrect ? 880 : 150);
                                   setQuizSubmitted(true);
+                                  if (isCorrect) {
+                                    addXP(15);
+                                  }
                                 } else {
                                   triggerTick(220);
                                 }
@@ -1491,24 +1649,52 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
                               Kirim Jawaban Kuis
                             </button>
                           ) : (
-                            <div className="bg-slate-950/40 p-5 rounded-2xl border border-white/5 space-y-3 mt-3">
-                              <div className="flex items-center gap-2">
+                            <div className={`p-6 rounded-2xl border transition-all mt-3 ${
+                              isQuizCorrect 
+                                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300 animate-pulse' 
+                                : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                            }`}>
+                              <div className="flex items-center gap-2 mb-3">
                                 {isQuizCorrect ? (
-                                  <div className="flex items-center gap-1.5 text-emerald-400 text-xs font-bold">
-                                    <ShieldCheck className="w-5 h-5 text-emerald-400" />
-                                    <span>✓ EVALUASI LULUS!</span>
+                                  <div className="flex items-center gap-2 text-emerald-400 text-sm font-bold">
+                                    <ShieldCheck className="w-6 h-6 text-emerald-400" />
+                                    <span>✓ EVALUASI PAPAN JAWABAN BENAR! (+15 XP)</span>
                                   </div>
                                 ) : (
-                                  <div className="flex items-center gap-1.5 text-rose-400 text-xs font-bold">
-                                    <AlertTriangle className="w-5 h-5 text-rose-450" />
-                                    <span>✗ JAWABAN KURANG TEPAT</span>
+                                  <div className="flex items-center gap-2 text-rose-400 text-sm font-bold">
+                                    <AlertTriangle className="w-6 h-6 text-rose-450 animate-[bounce_0.8s_infinite]" />
+                                    <span>✗ REKOMENDASI ANALISIS REVIEW & KOREKSI EVALUASI</span>
                                   </div>
                                 )}
                               </div>
-                              <p className="text-xs text-zinc-300 leading-relaxed font-light">
-                                <strong className="text-white">Analisis Guru:</strong> {lessonQuiz.explanation}
-                              </p>
-                              <p className="text-xs text-zinc-400 font-mono">Pilihan Jawaban Benar: <strong className="text-white">{lessonQuiz.answer}</strong></p>
+
+                              <div className="space-y-4">
+                                <p className="text-xs text-zinc-300 leading-relaxed font-sans bg-slate-950/40 p-4 rounded-xl border border-white/5">
+                                  <strong className="text-white block mb-1">Analisis Penggunaan:</strong> 
+                                  {lessonQuiz.explanation}
+                                </p>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px] font-sans">
+                                  <div className="p-3 bg-white/2 rounded-xl border border-white/5">
+                                    <span className="text-zinc-500 block">Jawaban Anda</span>
+                                    <span className={`font-semibold ${isQuizCorrect ? 'text-emerald-400' : 'text-rose-405'}`}>{quizSelectedAnswer}</span>
+                                  </div>
+                                  <div className="p-3 bg-white/2 rounded-xl border border-white/5">
+                                    <span className="text-zinc-500 block">Kunci Jawaban Tepat</span>
+                                    <span className="text-emerald-400 font-semibold">{lessonQuiz.answer}</span>
+                                  </div>
+                                </div>
+
+                                {/* Custom Remedial action list based on wrong answer */}
+                                {!isQuizCorrect && (
+                                  <div className="p-4 bg-amber-500/5 rounded-xl border border-amber-500/10 text-xs text-amber-300/90 leading-relaxed space-y-1.5">
+                                    <strong className="text-amber-200 block text-[11px] uppercase tracking-wider text-left">Langkah Remedial:</strong>
+                                    <p className="text-left">• Tinjau ulang pola tata bahasa bab ini: <strong>{currentLessonData.grammarPoints[0]?.title || 'Pola Utama'}</strong>.</p>
+                                    <p className="text-left">• Gunakan fitur Text-to-Speech (audio pronunciation) untuk melafalkan kata-kata kunci di tab Kosakata.</p>
+                                    <p className="text-left">• Bacalah dialog terjemahan dengan lantang agar intonasi kalimat nempal sempurna.</p>
+                                  </div>
+                                )}
+                              </div>
                               
                               <button
                                 onClick={() => {
@@ -1516,7 +1702,7 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
                                   setQuizSelectedAnswer('');
                                   setQuizSubmitted(false);
                                 }}
-                                className="mt-2 text-xs text-white underline hover:text-zinc-300 transition-colors uppercase cursor-pointer"
+                                className="mt-4 text-xs text-zinc-300 underline hover:text-white transition-colors uppercase cursor-pointer block text-left"
                               >
                                 Coba Jawab Ulang Kuis
                               </button>
@@ -1897,9 +2083,9 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
                         
                         {/* Audio speaker trigger */}
                         <button
-                          onClick={() => playKanaSound(word.jp, word.rom.toLowerCase())}
-                          className="p-1 px-1.5 h-7 w-7 rounded-lg border border-white/5 bg-white/5 hover:bg-white/10 active:scale-90 transition-all text-zinc-300 hover:text-white flex items-center justify-center cursor-pointer shrink-0"
-                          title="Putar Audio"
+                          onClick={() => speakText(word.jp)}
+                          className="p-1 px-1.5 h-7 w-7 rounded-lg border border-indigo-500/25 bg-indigo-550/10 hover:bg-indigo-500 hover:text-white text-indigo-300 active:scale-90 transition-all flex items-center justify-center cursor-pointer shrink-0 animate-pulse"
+                          title="Lafalkan Suara Asli (TTS)"
                         >
                           <Volume2 className="w-3.5 h-3.5" />
                         </button>
