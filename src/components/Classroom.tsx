@@ -17,6 +17,7 @@ import { lessons } from '../data/curriculum';
 import KanaTrainer from './KanaTrainer';
 import KanjiLibrary from './KanjiLibrary';
 import DailyPlanner from './DailyPlanner';
+import Leaderboard from './Leaderboard';
 import DigitalFlashcards from './DigitalFlashcards';
 import { recordSrsMistake, recordSrsSuccess, getDueSrsItems, SrsItem } from '../utils/srs';
 
@@ -48,12 +49,100 @@ export default function Classroom({ onBackToLanding, isFocusModeActive, onToggle
   // Lesson states
   const [selectedLesson, setSelectedLesson] = useState<number>(1);
   const [activeSectionUnderLesson, setActiveSectionUnderLesson] = useState<'kosakata' | 'tata' | 'dialog' | 'latihan' | 'kuis' | 'review'>('kosakata');
-  const [streakCount, setStreakCount] = useState<number>(12);
+  
+  // Automated Study Streak System (TikTok-style daily check-in)
+  const [userName, setUserName] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('ruka_onboarding');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.nama) return parsed.nama;
+      }
+    } catch (e) {}
+    return 'Gakusei (Anda)';
+  });
+
+  const [studiedToday, setStudiedToday] = useState<boolean>(() => {
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    return localStorage.getItem('n4_studied_today_date') === todayStr;
+  });
+
+  const [showCelebrationToast, setShowCelebrationToast] = useState<boolean>(false);
+  const [celebrationMessage, setCelebrationMessage] = useState<string>('');
+
+  const [streakCount, setStreakCount] = useState<number>(() => {
+    const saved = localStorage.getItem('n4_streak_count');
+    return saved ? parseInt(saved, 10) : 0;
+  });
+
+  // System-audited completed lesson sub-modules
+  const [completedSections, setCompletedSections] = useState<Record<number, string[]>>(() => {
+    const saved = localStorage.getItem('n4_completed_sections');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        // Fallback
+      }
+    }
+    // Clean starting state for new students (0% progress on all lessons):
+    const initial: Record<number, string[]> = {};
+    for (let i = 1; i <= 25; i++) {
+      initial[i] = [];
+    }
+    return initial;
+  });
+
+  const lessonCompletion = React.useMemo(() => {
+    const completion: Record<number, number> = {};
+    for (let i = 1; i <= 25; i++) {
+      const completed = completedSections[i] || [];
+      completion[i] = Math.round((completed.length / 6) * 100);
+    }
+    return completion;
+  }, [completedSections]);
+
+  const markSectionCompleted = (lessonId: number, sectionId: string) => {
+    setCompletedSections(prev => {
+      const current = prev[lessonId] || [];
+      if (current.includes(sectionId)) return prev;
+      const updated = {
+        ...prev,
+        [lessonId]: [...current, sectionId]
+      };
+      localStorage.setItem('n4_completed_sections', JSON.stringify(updated));
+      addXP(5); // +5 XP reward for system study progress!
+      
+      const today = new Date();
+      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      
+      const previouslyStudied = localStorage.getItem('n4_studied_today_date') === todayStr;
+      if (!previouslyStudied) {
+        localStorage.setItem('n4_studied_today_date', todayStr);
+        setStudiedToday(true);
+        setCelebrationMessage(`Selamat! Aktivitas belajar Anda tercatat untuk hari ini. Streak ${streakCount} Hari Anda aman dan aman dari reset! +5 XP Bonus.`);
+        setShowCelebrationToast(true);
+      }
+      
+      return updated;
+    });
+  };
+
+  const [weeklyAttendance, setWeeklyAttendance] = useState<Record<string, boolean>>({
+    'Senin': false,
+    'Selasa': false,
+    'Rabu': false,
+    'Kamis': false,
+    'Jumat': false,
+    'Sabtu': false,
+    'Minggu': false,
+  });
 
   // State for User Progress Store
   const [userXP, setUserXP] = useState<number>(() => {
     const saved = localStorage.getItem('n4_user_xp');
-    return saved ? parseInt(saved, 10) : 180; // starts with 180 XP
+    return saved ? parseInt(saved, 10) : 0; // starts with 0 XP for cleaner progression
   });
   const [userLevel, setUserLevel] = useState<number>(() => {
     const saved = localStorage.getItem('n4_user_level');
@@ -61,7 +150,7 @@ export default function Classroom({ onBackToLanding, isFocusModeActive, onToggle
   });
   const [unlockedBadges, setUnlockedBadges] = useState<string[]>(() => {
     const saved = localStorage.getItem('n4_user_badges');
-    return saved ? JSON.parse(saved) : ["Selamat Datang 🌸"]; // first starter badge
+    return saved ? JSON.parse(saved) : []; // brand new student starts with zero badges
   });
 
   const addXP = (amount: number) => {
@@ -90,35 +179,100 @@ export default function Classroom({ onBackToLanding, isFocusModeActive, onToggle
     });
   };
 
+  // Automated study attendance checking on load
+  useEffect(() => {
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+
+    const lastActiveDate = localStorage.getItem('n4_streak_last_active_date');
+    const savedStreak = localStorage.getItem('n4_streak_count');
+    const currentStreak = savedStreak ? parseInt(savedStreak, 10) : 3;
+
+    let newStreak = currentStreak;
+
+    if (!lastActiveDate) {
+      newStreak = 1;
+      localStorage.setItem('n4_streak_count', '1');
+      localStorage.setItem('n4_streak_last_active_date', todayStr);
+      setStreakCount(1);
+      setCelebrationMessage("Konnichiwa! 🌸 Selamat datang di Kelas Jepang Ruka. Kehadiran perdana Anda hari ini telah dicatat otomatis. Selesaikan materi untuk mengunci streak Anda!");
+      setShowCelebrationToast(true);
+    } else if (lastActiveDate === todayStr) {
+      newStreak = currentStreak;
+      setStreakCount(currentStreak);
+      setCelebrationMessage(`Okaeri! Konnichiwa kembali, ${userName}! 🌸 Streak belajar ${currentStreak} Hari Anda saat ini sukses dipertahankan, terkunci aman oleh sistem. Mari lanjutkan perjuangan!`);
+      setShowCelebrationToast(true);
+    } else if (lastActiveDate === yesterdayStr) {
+      newStreak = currentStreak + 1;
+      localStorage.setItem('n4_streak_count', newStreak.toString());
+      localStorage.setItem('n4_streak_last_active_date', todayStr);
+      setStreakCount(newStreak);
+      addXP(10); // Reward active user!
+      setCelebrationMessage(`Konnichiwa! 🎉 Streak kehadiran berhasil dipertahankan setelah melewati jam 00:00! Streak Anda naik menjadi ${newStreak} Hari berturut-turut! Tetap semangat belajar. (+10 XP)`);
+      setShowCelebrationToast(true);
+    } else {
+      newStreak = 1;
+      localStorage.setItem('n4_streak_count', '1');
+      localStorage.setItem('n4_streak_last_active_date', todayStr);
+      setStreakCount(1);
+      setCelebrationMessage("Yah, streak belajar Anda padam karena tidak berkunjung kemarin 😢. Tapi tidak apa-apa, mari bangun streak baru yang lebih kuat mulai hari ini!");
+      setShowCelebrationToast(true);
+    }
+
+    // Badge triggers
+    if (newStreak >= 13) {
+      unlockBadge('Streak Pemula 🔥');
+    }
+
+    // Refresh weekly check-in list
+    const dayNamesIndonesian = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    const todayDayName = dayNamesIndonesian[today.getDay()];
+
+    const savedWeekly = localStorage.getItem('n4_weekly_attendance');
+    let weekly: Record<string, boolean> = savedWeekly ? JSON.parse(savedWeekly) : {
+      'Senin': false,
+      'Selasa': false,
+      'Rabu': false,
+      'Kamis': false,
+      'Jumat': false,
+      'Sabtu': false,
+      'Minggu': false,
+    };
+
+    if (todayDayName === 'Senin' && lastActiveDate !== todayStr) {
+      weekly = {
+        'Senin': true,
+        'Selasa': false,
+        'Rabu': false,
+        'Kamis': false,
+        'Jumat': false,
+        'Sabtu': false,
+        'Minggu': false,
+      };
+    } else {
+      weekly[todayDayName] = true;
+    }
+
+    localStorage.setItem('n4_weekly_attendance', JSON.stringify(weekly));
+    setWeeklyAttendance(weekly);
+  }, []);
+
+  // Automatically mark section as completed as the user studies the modular sections
+  useEffect(() => {
+    if (activeTab === 'materi') {
+      markSectionCompleted(selectedLesson, activeSectionUnderLesson);
+    }
+  }, [activeTab, selectedLesson, activeSectionUnderLesson]);
+
   useEffect(() => {
     if (streakCount >= 13) {
       unlockBadge('Streak Pemula 🔥');
     }
   }, [streakCount]);
-
-  // Dashboard / Lesson Completion States
-  const [lessonCompletion, setLessonCompletion] = useState<Record<number, number>>(() => {
-    const initial: Record<number, number> = {};
-    for (let i = 1; i <= 25; i++) {
-      if (i === 1) initial[i] = 100;
-      else if (i === 2) initial[i] = 100;
-      else if (i === 3) initial[i] = 80;
-      else if (i === 4) initial[i] = 40;
-      else if (i === 5) initial[i] = 20;
-      else initial[i] = 0;
-    }
-    return initial;
-  });
-
-  const [weeklyAttendance, setWeeklyAttendance] = useState<Record<string, boolean>>({
-    'Senin': true,
-    'Selasa': true,
-    'Rabu': true,
-    'Kamis': true,
-    'Jumat': false,
-    'Sabtu': false,
-    'Minggu': false,
-  });
 
   // Lesson sub-interactive states
   const [quizSelectedAnswer, setQuizSelectedAnswer] = useState<string>('');
@@ -661,6 +815,61 @@ export default function Classroom({ onBackToLanding, isFocusModeActive, onToggle
   return (
     <div id="classroom-main-view" className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 py-6 pb-24">
       
+      {/* Dynamic Celebration Toast Modal */}
+      {showCelebrationToast && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-fade-in">
+          <div className="bg-gradient-to-b from-slate-900 to-indigo-950 border-2 border-amber-500/50 rounded-3xl p-8 max-w-md w-full shadow-[0_0_50px_rgba(245,158,11,0.3)] text-center space-y-6 transform animate-bounce-short relative overflow-hidden">
+            {/* Ambient Background Glows */}
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-48 bg-amber-500/20 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-10 left-10 w-32 h-32 bg-indigo-500/20 rounded-full blur-2xl pointer-events-none" />
+
+            {/* Glowing Icon Header */}
+            <div className="flex justify-center relative">
+              <div className="absolute inset-0 bg-amber-500/20 rounded-full blur-xl scale-125 animate-pulse" />
+              <div className="w-18 h-18 bg-amber-500 text-slate-950 rounded-full flex items-center justify-center text-4xl shadow-lg relative">
+                🔥
+              </div>
+            </div>
+
+            {/* Celebration title */}
+            <div className="space-y-1 relative z-10">
+              <span className="text-[10px] font-black uppercase tracking-widest text-amber-400 bg-amber-450/15 px-3 py-1 rounded-full border border-amber-400/20">
+                SINKRONISASI STREAK SELESAI
+              </span>
+              <h2 className="text-xl font-display font-medium text-white pt-2">
+                STREAK KEHADIRAN AKTIF!
+              </h2>
+            </div>
+
+            <p className="text-sm text-zinc-350 font-light leading-relaxed relative z-10 font-sans">
+              {celebrationMessage}
+            </p>
+
+            {/* Extra Motivation Line */}
+            <div className="bg-white/5 border border-white/5 rounded-2xl p-4 flex items-center justify-between text-left relative z-10 font-mono">
+              <div>
+                <span className="text-[9px] text-zinc-500 block uppercase font-bold">Kategori Status</span>
+                <span className="text-xs text-white font-bold">🔥 {streakCount} Hari Nyala</span>
+              </div>
+              <div className="text-right">
+                <span className="text-[9px] text-zinc-500 block uppercase font-bold">XP Diperoleh</span>
+                <span className="text-xs text-amber-400 font-bold font-mono">+10 XP</span>
+              </div>
+            </div>
+
+            <button
+              onClick={() => {
+                triggerTick(880);
+                setShowCelebrationToast(false);
+              }}
+              className="w-full py-4 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-550 text-slate-950 font-black text-xs uppercase tracking-widest rounded-2xl transition-all shadow-lg hover:shadow-amber-500/20 cursor-pointer hover:scale-102 active:scale-98"
+            >
+              Lanjutkan Belajar 🌸
+            </button>
+          </div>
+        </div>
+      )}
+      
       {/* Top Header Controls with User Info and App Back Button */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 mb-8 bg-white/5 border border-white/5 rounded-3xl p-6 backdrop-blur-md">
         
@@ -752,6 +961,62 @@ export default function Classroom({ onBackToLanding, isFocusModeActive, onToggle
         }
         const averageCompletion = Math.round(totalCompletionVal / 25);
         
+        // Dynamic Chapter/Vocabulary Completion helpers
+        const getChapterCompletion = (start: number, end: number) => {
+          let sectionCount = 0;
+          for (let i = start; i <= end; i++) {
+            const completed = completedSections[i] || [];
+            if (completed.includes('kosakata')) {
+              sectionCount += 1;
+            }
+          }
+          const maxSec = (end - start + 1);
+          return Math.round((sectionCount / maxSec) * 100);
+        };
+
+        const chartData = [
+          { name: "Bab 1-5", value: getChapterCompletion(1, 5) },
+          { name: "Bab 6-10", value: getChapterCompletion(6, 10) },
+          { name: "Bab 11-15", value: getChapterCompletion(11, 15) },
+          { name: "Bab 16-20", value: getChapterCompletion(16, 20) },
+          { name: "Bab 21-25", value: getChapterCompletion(21, 25) }
+        ];
+
+        const getY = (val: number) => 150 - (val / 100) * 110;
+
+        const p1_y = getY(chartData[0].value);
+        const p2_y = getY(chartData[1].value);
+        const p3_y = getY(chartData[2].value);
+        const p4_y = getY(chartData[3].value);
+        const p5_y = getY(chartData[4].value);
+
+        const linePath = `M 40 ${p1_y} L 140 ${p2_y} L 240 ${p3_y} L 340 ${p4_y} L 440 ${p5_y}`;
+        const areaPath = `M 40 ${p1_y} L 140 ${p2_y} L 240 ${p3_y} L 340 ${p4_y} L 440 ${p5_y} L 440 150 L 40 150 Z`;
+
+        // Calculate lesson stats
+        let fullCount = 0;
+        let partialCount = 0;
+        let unstartedCount = 0;
+
+        for (let i = 1; i <= 25; i++) {
+          const percent = lessonCompletion[i] || 0;
+          if (percent === 100) fullCount++;
+          else if (percent > 0) partialCount++;
+          else unstartedCount++;
+        }
+
+        // Leaderboard competitors lists
+        const competitors = [
+          { name: "Tanaka-sensei 🇯🇵", location: "Tokyo", xp: 2450, streak: 42, icon: "🥇" },
+          { name: "Yuki Sato 🌸", location: "Kyoto", xp: 1980, streak: 29, icon: "🥈" },
+          { name: `${userName} (Anda)`, location: "ID", xp: userXP, streak: streakCount, icon: "⚡", isUser: true },
+          { name: "Kenji-kun 🚄", location: "Osaka", xp: 850, streak: 14, icon: "🥉" },
+          { name: "Sakura-chan ❄️", location: "Hokkaido", xp: 420, streak: 9, icon: "🎯" }
+        ];
+
+        const sortedLeaderboard = [...competitors].sort((a, b) => b.xp - a.xp);
+        const userRankIndex = sortedLeaderboard.findIndex(item => item.isUser);
+        
         // Define standard circular calculations
         const radius = 60;
         const circumference = 2 * Math.PI * radius; // ~376.99
@@ -776,32 +1041,58 @@ export default function Classroom({ onBackToLanding, isFocusModeActive, onToggle
           levelColor = "text-amber-400 bg-amber-400/10 border-amber-400/15";
         }
 
-        const handleToggleAttendance = (day: string) => {
-          const isAttended = weeklyAttendance[day];
-          triggerTick(isAttended ? 220 : 880);
-          setWeeklyAttendance(prev => ({ ...prev, [day]: !isAttended }));
-          setStreakCount(prev => isAttended ? Math.max(0, prev - 1) : prev + 1);
-        };
-
-        const handleAdjustCompletion = (lessonId: number, val: number) => {
-          triggerTick(580);
-          setLessonCompletion(prev => ({
-            ...prev,
-            [lessonId]: Math.max(0, Math.min(100, val))
-          }));
-        };
-
-        const handlePresetCompletion = (lessonId: number, preset: 'zero' | 'half' | 'full') => {
-          triggerTick(880);
-          const percent = preset === 'zero' ? 0 : preset === 'half' ? 50 : 100;
-          setLessonCompletion(prev => ({
-            ...prev,
-            [lessonId]: percent
-          }));
-        };
-
         return (
           <div id="classroom-dashboard-module" className="animate-fade-rise space-y-8">
+            {/* STREAK SAFEGUARD REMINDER BANNER */}
+            {!studiedToday ? (
+              <div className="bg-gradient-to-r from-amber-500/15 via-red-500/10 to-transparent border border-amber-500/30 rounded-3xl p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-lg shadow-amber-500/5 animate-pulse-slow">
+                <div className="flex items-start gap-3.5">
+                  <div className="p-3 bg-amber-500/20 rounded-2xl text-amber-400 shrink-0">
+                    <Flame className="w-6 h-6 text-amber-500 animate-bounce" />
+                  </div>
+                  <div className="space-y-1 text-left">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-amber-400 bg-amber-450/15 px-2 py-0.5 rounded-full">Belum Belajar Hari Ini</span>
+                      <h4 className="text-sm font-bold text-white">⚠️ Amankan Streak Harian Anda Sekarang!</h4>
+                    </div>
+                    <p className="text-xs text-zinc-300 font-light max-w-2xl leading-relaxed">
+                      Sistem belum mendeteksi aktivitas belajar Anda hari ini. Buka tab <strong>Materi Belajar</strong> dan selesaikan minimal 1 sub-materi hari ini sebelum jam <strong>00:00</strong> tengah malam untuk menjaga streak <strong>{streakCount} Hari</strong> Anda tetap aktif!
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => {
+                    triggerTick(580);
+                    setActiveTab('materi');
+                  }}
+                  className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-2xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer hover:scale-103 shrink-0 text-center"
+                >
+                  Belajar Materi Baru ✨
+                </button>
+              </div>
+            ) : (
+              <div className="bg-gradient-to-r from-emerald-500/15 via-indigo-500/10 to-transparent border border-emerald-500/20 rounded-3xl p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-lg shadow-emerald-500/5">
+                <div className="flex items-start gap-3.5">
+                  <div className="p-3 bg-emerald-500/20 rounded-2xl text-emerald-400 shrink-0">
+                    <ShieldCheck className="w-6 h-6 text-emerald-400" />
+                  </div>
+                  <div className="space-y-1 text-left">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400 bg-emerald-400/15 px-2 py-0.5 rounded-full">Aman & Terverifikasi</span>
+                      <h4 className="text-sm font-bold text-white">🎉 Hebat, {userName}! Streak Belajar Anda Aman Hari Ini</h4>
+                    </div>
+                    <p className="text-xs text-zinc-300 font-light max-w-2xl leading-relaxed">
+                      Luar biasa! Progres Anda sudah terverifikasi sistem hari ini. Streak <strong>{streakCount} Hari</strong> Anda telah dikunci oleh sistem dan aman dari reset pergantian hari nanti.
+                    </p>
+                  </div>
+                </div>
+                <div className="text-xs text-emerald-400 font-mono font-bold flex items-center gap-1.5 bg-emerald-500/10 px-3.5 py-2 rounded-xl border border-emerald-500/15 shrink-0 select-none">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>TERVERIFIKASI SISTEM 00:00 SAFE</span>
+                </div>
+              </div>
+            )}
+
             {/* Top overview statistics bento grid banner */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
               
@@ -890,6 +1181,41 @@ export default function Classroom({ onBackToLanding, isFocusModeActive, onToggle
                     ))}
                   </div>
                 </div>
+
+                {/* Reset Progress Action */}
+                <div className="pt-2 border-t border-white/5 flex items-center justify-between gap-2">
+                  <span className="text-[9px] text-zinc-500 leading-tight">Mulai belajar dari nol?</span>
+                  <button
+                    onClick={() => {
+                      const confirmReset = window.confirm("Apakah Anda yakin ingin meriset semua progres belajar dan kembali menjadi murid baru? Langkah ini tidak dapat dibatalkan.");
+                      if (confirmReset) {
+                        try {
+                          const keysToClear = [
+                            'ruka_onboarding',
+                            'n4_studied_today_date',
+                            'n4_streak_count',
+                            'n4_completed_sections',
+                            'n4_user_xp',
+                            'n4_user_level',
+                            'n4_user_badges',
+                            'n4_streak_last_active_date',
+                            'n4_weekly_attendance',
+                            'n4_planner_goals',
+                            'ruka_flashcard_progress',
+                            'ruka_srs_mistakes'
+                          ];
+                          keysToClear.forEach(key => localStorage.removeItem(key));
+                          window.location.reload();
+                        } catch (e) {
+                          alert("Gagal meriset data progres.");
+                        }
+                      }
+                    }}
+                    className="text-[9px] text-red-400/80 hover:text-red-400 bg-red-500/5 hover:bg-red-500/10 border border-red-500/20 hover:border-red-500/40 px-2.5 py-1 rounded-lg transition-all font-mono font-bold uppercase tracking-wider cursor-pointer active:scale-95 shrink-0"
+                  >
+                    ⚠️ Riset Progres
+                  </button>
+                </div>
               </div>
 
               {/* Box 3: Gorgeous Streak & Weekly Attendance Calendar */}
@@ -901,7 +1227,7 @@ export default function Classroom({ onBackToLanding, isFocusModeActive, onToggle
                       <Flame className="w-4 h-4 text-amber-500 animate-bounce" /> Streak Kehadiran
                     </h3>
                     <p className="text-[10px] text-zinc-400 font-light font-sans leading-normal">
-                      Konsistensi belajar harian. Centang kotak kehadiran sebagai komitmen belajar.
+                      Konsistensi belajar harian. Kehadiran dicatat otomatis oleh sistem setiap hari saat Anda belajar.
                     </p>
                   </div>
 
@@ -918,13 +1244,12 @@ export default function Classroom({ onBackToLanding, isFocusModeActive, onToggle
                 {/* Calendar grid for attendance */}
                 <div className="grid grid-cols-7 gap-1">
                   {Object.entries(weeklyAttendance).map(([day, checked]) => (
-                    <button
+                    <div
                       key={day}
-                      onClick={() => handleToggleAttendance(day)}
-                      className={`p-2.5 rounded-xl border transition-all duration-300 relative overflow-hidden group cursor-pointer flex flex-col items-center justify-between gap-1.5 ${
+                      className={`p-2.5 rounded-xl border transition-all duration-300 relative overflow-hidden flex flex-col items-center justify-between gap-1.5 select-none ${
                         checked 
                           ? 'bg-amber-500/10 border-amber-500/30 text-amber-300' 
-                          : 'bg-white/2 hover:bg-white/5 border-white/5 text-zinc-400 hover:text-white'
+                          : 'bg-white/2 border-white/5 text-zinc-500'
                       }`}
                     >
                       <span className="text-[8px] font-semibold tracking-wider uppercase font-sans">{day.slice(0, 3)}</span>
@@ -932,11 +1257,11 @@ export default function Classroom({ onBackToLanding, isFocusModeActive, onToggle
                       <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
                         checked 
                           ? 'bg-amber-500 border-amber-400 text-slate-950 scale-105' 
-                          : 'bg-slate-950/45 border-white/10 text-transparent group-hover:border-white/20'
+                          : 'bg-slate-950/45 border-white/10 text-transparent'
                       }`}>
-                        <Check className="w-3 stroke-[3]" />
+                      {checked && <Check className="w-3 stroke-[3]" />}
                       </div>
-                    </button>
+                    </div>
                   ))}
                 </div>
 
@@ -960,6 +1285,107 @@ export default function Classroom({ onBackToLanding, isFocusModeActive, onToggle
               />
             </div>
 
+            {/* NEW SECTION: DATA VISUALIZATION AND LEADERBOARD */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+              
+              {/* ANALYTICS VISUALIZER PANEL */}
+              <div className="liquid-glass rounded-3xl p-6 border border-white/5 space-y-6 text-left">
+                <div className="space-y-1">
+                  <span className="text-[9px] uppercase font-mono font-bold tracking-widest text-indigo-400 block">PROGRES OTOMATIS TERVERIFIKASI</span>
+                  <h3 className="text-lg font-display text-white font-normal flex items-center gap-2">
+                    <Layers className="w-5 h-5 text-indigo-400" /> Grafik Analitik Penguasaan Kosakata
+                  </h3>
+                  <p className="text-[11px] text-zinc-400 font-light leading-snug">
+                    Berdasarkan porsi sub-bab kosakata yang dicatat otomatis oleh kecerdasan sistem saat Anda aktif belajar.
+                  </p>
+                </div>
+
+                {/* Responsive SVG Step Progress Area Chart */}
+                <div className="bg-slate-950/60 p-4 rounded-2xl border border-white/5 relative overflow-hidden">
+                  <svg viewBox="0 0 480 180" className="w-full h-auto text-indigo-400 select-none">
+                    {/* Definitions for beautiful glow gradients */}
+                    <defs>
+                      <linearGradient id="areaGlow" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#6366f1" stopOpacity="0.35" />
+                        <stop offset="100%" stopColor="#6366f1" stopOpacity="0.00" />
+                      </linearGradient>
+                      <filter id="neonShadow" x="-10%" y="-10%" width="120%" height="120%">
+                        <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#6366f1" floodOpacity="0.4" />
+                      </filter>
+                    </defs>
+
+                    {/* Horizontal grid guide lines */}
+                    <line x1="40" y1="40" x2="440" y2="40" stroke="rgba(255,255,255,0.05)" strokeDasharray="4 4" />
+                    <text x="35" y="44" className="text-[8px] fill-zinc-650 outline-none text-right font-mono" textAnchor="end">100%</text>
+
+                    <line x1="40" y1="95" x2="440" y2="95" stroke="rgba(255,255,255,0.05)" strokeDasharray="4 4" />
+                    <text x="35" y="99" className="text-[8px] fill-zinc-650 outline-none text-right font-mono" textAnchor="end">50%</text>
+
+                    <line x1="40" y1="150" x2="440" y2="150" stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
+                    <text x="35" y="154" className="text-[8px] fill-zinc-650 outline-none text-right font-mono" textAnchor="end">0%</text>
+
+                    {/* Shaded Area and Line */}
+                    <path d={areaPath} fill="url(#areaGlow)" />
+                    <path d={linePath} fill="none" stroke="#6366f1" strokeWidth="2.5" filter="url(#neonShadow)" />
+
+                    {/* Circular points with custom tooltip triggers */}
+                    {[
+                      { x: 40, y: p1_y, label: "Bab 1-5", val: chartData[0].value },
+                      { x: 140, y: p2_y, label: "Bab 6-10", val: chartData[1].value },
+                      { x: 240, y: p3_y, label: "Bab 11-15", val: chartData[2].value },
+                      { x: 340, y: p4_y, label: "Bab 16-20", val: chartData[3].value },
+                      { x: 440, y: p5_y, label: "Bab 21-25", val: chartData[4].value },
+                    ].map((pt, index) => (
+                      <g key={index} className="group cursor-help">
+                        <circle cx={pt.x} cy={pt.y} r="5" fill="#1e1b4b" stroke="#6366f1" strokeWidth="2.5" className="transition-all duration-300 hover:r-7" />
+                        <text x={pt.x} y={pt.y - 10} className="text-[9px] fill-white font-mono opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 duration-200" textAnchor="middle">
+                          {pt.val}%
+                        </text>
+                        <text x={pt.x} y="166" className="text-[9px] fill-zinc-500 font-sans" textAnchor="middle">
+                          {pt.label}
+                        </text>
+                      </g>
+                    ))}
+                  </svg>
+                </div>
+
+                {/* Lesson breakdown ratios */}
+                <div className="space-y-3.5 bg-slate-950/25 border border-white/5 p-4 rounded-2xl">
+                  <div className="flex justify-between items-center text-[10px] uppercase font-mono font-bold text-zinc-500">
+                    <span>Sebaran Target Kelulusan Bab N4-N5</span>
+                    <span>Progres Kumulatif</span>
+                  </div>
+
+                  {/* Horizontal visual breakdown stacks */}
+                  <div className="w-full h-3.5 bg-slate-950 rounded-full overflow-hidden flex border border-white/5 p-0.5">
+                    {fullCount > 0 && <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${(fullCount / 25) * 100}%` }} title={`Selesai: ${fullCount}`} />}
+                    {partialCount > 0 && <div className="h-full bg-indigo-500 transition-all duration-500" style={{ width: `${(partialCount / 25) * 100}%` }} title={`Sedang Belajar: ${partialCount}`} />}
+                    {unstartedCount > 0 && <div className="h-full bg-zinc-800 transition-all duration-500" style={{ width: `${(unstartedCount / 25) * 100}%` }} title={`Belum Dimulai: ${unstartedCount}`} />}
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="bg-emerald-500/5 p-2 rounded-xl border border-emerald-500/10">
+                      <span className="text-[9px] text-zinc-500 block uppercase font-mono">Tuntas (100%)</span>
+                      <span className="text-sm font-mono font-bold text-emerald-400">{fullCount} Bab</span>
+                    </div>
+                    <div className="bg-indigo-500/5 p-2 rounded-xl border border-indigo-500/10">
+                      <span className="text-[9px] text-zinc-500 block uppercase font-mono">Dalam Progres</span>
+                      <span className="text-sm font-mono font-bold text-indigo-400">{partialCount} Bab</span>
+                    </div>
+                    <div className="bg-zinc-850 p-2 rounded-xl border border-white/2">
+                      <span className="text-[9px] text-zinc-500 block uppercase font-mono">Belum Dibuka</span>
+                      <span className="text-sm font-mono font-bold text-zinc-400">{unstartedCount} Bab</span>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* GLOBAL LEADERBOARD WIDGET */}
+              <Leaderboard userXP={userXP} streakCount={streakCount} />
+
+            </div>
+
             {/* SECTION 2: THE 25 LESSONS DETAILED COMPLETION TRACKER GRID */}
             <div className="space-y-4">
               
@@ -974,30 +1400,12 @@ export default function Classroom({ onBackToLanding, isFocusModeActive, onToggle
                   </p>
                 </div>
                 
-                {/* Global mass controls helper */}
-                <div className="flex gap-2 w-full sm:w-auto">
-                  <button
-                    onClick={() => {
-                      triggerTick(880);
-                      const full: Record<number, number> = {};
-                      for(let i=1; i<=25; i++) full[i] = 100;
-                      setLessonCompletion(full);
-                    }}
-                    className="p-2 sm:px-4 sm:py-2 bg-white/3 border border-white/5 rounded-xl hover:bg-white/8 hover:text-white text-zinc-400 text-[11px] transition-all cursor-pointer flex-1 text-center"
-                  >
-                    Set Selesai Semua Bab
-                  </button>
-                  <button
-                    onClick={() => {
-                      triggerTick(220);
-                      const empty: Record<number, number> = {};
-                      for(let i=1; i<=25; i++) empty[i] = 0;
-                      setLessonCompletion(empty);
-                    }}
-                    className="p-2 sm:px-4 sm:py-2 bg-white/3 border border-white/5 rounded-xl hover:bg-white/8 hover:text-white text-zinc-400 text-[11px] transition-all cursor-pointer flex-1 text-center"
-                  >
-                    Reset Semua Bab
-                  </button>
+                {/* Auto qualification explanation */}
+                <div className="bg-indigo-550/10 border border-indigo-500/15 p-3 px-4 rounded-2xl text-left hidden sm:flex items-center gap-2 max-w-sm shrink-0">
+                  <ShieldCheck className="w-4 h-4 text-indigo-400 shrink-0" />
+                  <span className="text-[10px] text-zinc-350 leading-normal font-sans">
+                    <strong>Evaluasi Sistem Aktif:</strong> Pelajari tiap tab materi (kosakata, pola, dialog, latihan, kuis) untuk mengisinya secara otomatis. Bebas manipulasi!
+                  </span>
                 </div>
               </div>
 
@@ -1065,48 +1473,40 @@ export default function Classroom({ onBackToLanding, isFocusModeActive, onToggle
                         </div>
                       </div>
 
-                      {/* Middle row: Interactive slider and status markers */}
-                      <div className="space-y-2 bg-slate-950/20 p-2.5 rounded-xl border border-white/2">
+                      {/* Middle row: System evaluated completed sections */}
+                      <div className="space-y-2.5 bg-slate-950/40 p-3 rounded-xl border border-white/5">
                         <div className="flex justify-between items-center text-[10px] font-mono">
-                          <span className="text-zinc-500">Tingkat Penyerapan</span>
+                          <span className="text-zinc-500">Evaluasi Sistem</span>
                           <span className={isFinished ? 'text-emerald-400 font-bold' : 'text-zinc-350'}>
-                            {percent === 100 ? 'Terserap Sempurna 🎉' : `${percent}% Tuntas`}
+                            {percent === 100 ? 'Lulus Sempurna ✨' : `${percent}% Tuntas`}
                           </span>
                         </div>
                         
-                        {/* Interactive Range Slider */}
-                        <div className="flex items-center gap-2">
-                          <input 
-                            type="range"
-                            min="0"
-                            max="100"
-                            step="10"
-                            value={percent}
-                            onChange={(e) => handleAdjustCompletion(les.id, Number(e.target.value))}
-                            className="w-full accent-indigo-400 h-1 bg-white/10 rounded-lg cursor-pointer transition-all hover:bg-white/20"
-                          />
-                        </div>
-
-                        {/* Quick toggle presets */}
-                        <div className="flex justify-between items-center bg-slate-950/40 px-1 py-1 rounded-lg">
-                          <button
-                            onClick={() => handlePresetCompletion(les.id, 'zero')}
-                            className="text-[9px] text-zinc-500 hover:text-white px-1.5 py-0.5 rounded hover:bg-white/5 transition-all cursor-pointer font-sans"
-                          >
-                            Reset
-                          </button>
-                          <button
-                            onClick={() => handlePresetCompletion(les.id, 'half')}
-                            className="text-[9px] text-zinc-500 hover:text-white px-1.5 py-0.5 rounded hover:bg-white/5 transition-all cursor-pointer font-sans"
-                          >
-                            50%
-                          </button>
-                          <button
-                            onClick={() => handlePresetCompletion(les.id, 'full')}
-                            className="text-[9px] text-emerald-400/80 hover:text-emerald-300 font-bold px-1.5 py-0.5 rounded bg-emerald-500/5 hover:bg-emerald-500/15 border border-emerald-500/10 transition-all cursor-pointer font-sans"
-                          >
-                            Selesai!
-                          </button>
+                        {/* Micro Progress Blocks for 6 segments */}
+                        <div className="grid grid-cols-6 gap-1">
+                          {[
+                            { id: 'kosakata', label: 'Kosakata', symbol: '📖' },
+                            { id: 'tata', label: 'Tata', symbol: '✍️' },
+                            { id: 'dialog', label: 'Dialog', symbol: '💬' },
+                            { id: 'latihan', label: 'Latih', symbol: '🧱' },
+                            { id: 'kuis', label: 'Kuis', symbol: '❓' },
+                            { id: 'review', label: 'Kultur', symbol: '⛩️' }
+                          ].map(seg => {
+                            const isSegDone = (completedSections[les.id] || []).includes(seg.id);
+                            return (
+                              <div 
+                                key={seg.id}
+                                title={`${seg.label}: ${isSegDone ? 'Sudah Dipelajari' : 'Belum Dipelajari'}`}
+                                className={`text-[9px] py-1 rounded text-center transition-all flex flex-col items-center justify-center font-mono ${
+                                  isSegDone 
+                                    ? 'bg-emerald-500/15 text-emerald-355 border border-emerald-500/20 font-bold' 
+                                    : 'bg-white/2 text-zinc-600 border border-transparent'
+                                }`}
+                              >
+                                <span className={isSegDone ? 'opacity-100 scale-110' : 'opacity-40 grayscale'}>{seg.symbol}</span>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
 

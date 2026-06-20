@@ -290,20 +290,20 @@ export const AMBIENT_TRACKS: AmbientTrack[] = [
   {
     id: "t1",
     title: "Quiet Kyoto Sunset",
-    mood: "Soft Japanese Lofi",
-    sourceUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"
+    mood: "Soft Classical Piano",
+    sourceUrl: "https://ccrma.stanford.edu/~jos/mp3/pno-cs.mp3"
   },
   {
     id: "t2",
-    title: "Midnight Shinjuku Beats",
-    mood: "Calm Focus Lofi",
-    sourceUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3"
+    title: "Hokkaido Gentle Rain",
+    mood: "Calm Rhodes Electric Piano",
+    sourceUrl: "https://ccrma.stanford.edu/~jos/mp3/rhodes.mp3"
   },
   {
     id: "t3",
-    title: "Nara Forest Rain",
-    mood: "Nature Ambient + Piano",
-    sourceUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3"
+    title: "Zen Tea Garden",
+    mood: "Aesthetic Jazz Guitar Loop",
+    sourceUrl: "https://ccrma.stanford.edu/~jos/mp3/guitar.mp3"
   }
 ];
 

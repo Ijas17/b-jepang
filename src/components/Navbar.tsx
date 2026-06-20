@@ -4,7 +4,8 @@
  */
 
 import React, { useState } from 'react';
-import { Menu, X, Globe, Sparkles, Moon } from 'lucide-react';
+import { Menu, X, Globe, Sparkles, Moon, Music } from 'lucide-react';
+import { useMusic } from '../contexts/MusicContext';
 
 interface NavbarProps {
   onNavClick: (sectionId: string) => void;
@@ -26,6 +27,7 @@ export default function Navbar({
   onToggleFocusMode
 }: NavbarProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const { isPlaying, togglePlay } = useMusic();
 
   const navLinks = isInsideApp ? [] : [
     { label: 'Beranda', id: 'home' },
@@ -76,6 +78,19 @@ export default function Navbar({
 
         {/* Desktop CTA using liquid-glass */}
         <div id="desktop-cta" className="hidden lg:flex items-center space-x-4">
+          <button
+            onClick={() => togglePlay()}
+            title={isPlaying ? 'Jeda Musik Latar' : 'Nyalakan Musik Latar'}
+            className={`p-2.5 rounded-full border transition-all cursor-pointer flex items-center justify-center gap-1.5 px-4 text-xs font-semibold ${
+              isPlaying
+                ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-200 shadow-[0_0_15px_rgba(16,185,129,0.25)]'
+                : 'bg-white/5 border-white/10 text-zinc-400 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            <Music className={`w-3.5 h-3.5 ${isPlaying ? 'animate-bounce text-emerald-400' : ''}`} />
+            <span>{isPlaying ? 'Musik Hidup 🎵' : 'Putar Musik'}</span>
+          </button>
+
           {onToggleFocusMode && (
             <button
               onClick={() => onToggleFocusMode(!isFocusModeActive)}
@@ -137,6 +152,21 @@ export default function Navbar({
               </button>
             ))}
             <div className="pt-2 border-t border-white/5 flex flex-col space-y-3">
+              <button
+                onClick={() => {
+                  togglePlay();
+                  setIsOpen(false);
+                }}
+                className={`border rounded-full w-full py-3 text-center text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
+                  isPlaying
+                    ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-200 shadow-md shadow-emerald-500/5'
+                    : 'bg-white/5 border-white/10 text-zinc-300'
+                }`}
+              >
+                <Music className={`w-4 h-4 ${isPlaying ? 'text-emerald-400 animate-bounce' : ''}`} />
+                {isPlaying ? 'Musik Latar: Hidup 🎵' : 'Nyalakan Musik Latar'}
+              </button>
+
               {onToggleFocusMode && (
                 <button
                   onClick={() => {

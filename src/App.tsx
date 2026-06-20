@@ -13,13 +13,55 @@ import Playlist from './components/Playlist';
 import FocusSection from './components/FocusSection';
 import CTASection from './components/CTASection';
 import Classroom from './components/Classroom';
-import { Volume2, Sparkles, BookOpen, Smile, ShieldAlert } from 'lucide-react';
+import { Volume2, Sparkles, BookOpen, Smile, ShieldAlert, Flame } from 'lucide-react';
+import { MusicProvider } from './contexts/MusicContext';
+import GlobalFloatingPlayer from './components/GlobalFloatingPlayer';
 
-export default function App() {
+export function MainApp() {
   const [activeSection, setActiveSection] = useState('home');
   const [isFocusModeActive, setIsFocusModeActive] = useState(false);
   const [welcomeTip, setWelcomeTip] = useState(true);
   const [isInsideApp, setIsInsideApp] = useState(false);
+  const [showAbsenceWarning, setShowAbsenceWarning] = useState(false);
+
+  useEffect(() => {
+    // Force a one-time clean reset of absolute stats to reset state for existing users as a clean "murid baru"
+    if (!localStorage.getItem('ruka_force_reset_v3')) {
+      localStorage.clear();
+      localStorage.setItem('ruka_force_reset_v3', 'true');
+      window.location.reload();
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      const lastActiveDate = localStorage.getItem('n4_streak_last_active_date');
+      const savedOnboarding = localStorage.getItem('ruka_onboarding');
+      if (lastActiveDate && savedOnboarding) {
+        const today = new Date();
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        
+        if (lastActiveDate !== todayStr) {
+          const lastDateParts = lastActiveDate.split('-');
+          const lastDate = new Date(
+            parseInt(lastDateParts[0], 10),
+            parseInt(lastDateParts[1], 10) - 1,
+            parseInt(lastDateParts[2], 10)
+          );
+          
+          today.setHours(0, 0, 0, 0);
+          lastDate.setHours(0, 0, 0, 0);
+          
+          const diffTime = today.getTime() - lastDate.getTime();
+          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+          
+          if (diffDays >= 1) {
+            setShowAbsenceWarning(true);
+          }
+        }
+      }
+    } catch (e) {}
+  }, []);
 
   // Handle validating onboarding completion before entering the app
   const handleEnterApp = () => {
@@ -102,6 +144,41 @@ export default function App() {
       {/* 2. Primary layout contents (layered relative on z-10) */}
       <div className="relative z-10 flex flex-col min-h-screen">
         
+        {/* Absence streak precaution warning banner */}
+        {showAbsenceWarning && !isInsideApp && (
+          <div id="absence-streak-alert" className="bg-gradient-to-r from-red-500/25 via-amber-500/15 to-transparent backdrop-blur-md border-b border-red-500/30 py-4 px-6 relative z-25 flex flex-col md:flex-row items-center justify-between gap-4 animate-fade-rise select-none shadow-lg shadow-red-500/5">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-red-500/20 text-red-500 rounded-xl shrink-0 animate-pulse">
+                <Flame className="w-5.5 h-5.5" />
+              </div>
+              <div className="text-left space-y-0.5">
+                <span className="text-[10px] uppercase font-mono font-bold tracking-widest text-red-400">AMANKAN STREAK HARIAN</span>
+                <p className="text-xs sm:text-sm text-zinc-100 font-medium">
+                  <strong>⚠️ Peringatan Streak Kehadiran:</strong> Anda terdeteksi belum belajar sejak kunjungan terakhir! Segera masuk ke dalam kelas sekarang untuk mengunci streak harian Anda agar tidak padam!
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2.5 shrink-0 w-full md:w-auto justify-end">
+              <button 
+                onClick={() => {
+                  setShowAbsenceWarning(false);
+                  handleEnterApp();
+                }}
+                className="px-5 py-2.5 bg-gradient-to-r from-red-500 to-amber-500 hover:from-red-450 hover:to-amber-450 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer hover:scale-103 shadow-md shadow-red-500/10 shrink-0 text-center"
+              >
+                Kunci Streak Sekarang ⚡
+              </button>
+              <button 
+                onClick={() => setShowAbsenceWarning(false)}
+                className="px-3.5 py-2.5 bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white rounded-xl text-xs uppercase tracking-wider transition-colors cursor-pointer shrink-0"
+              >
+                Abaikan
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Welcome tip / banner overlay */}
         {welcomeTip && (
           <div id="welcome-banner" className="bg-white/10 backdrop-blur-md border-b border-white/5 py-3.5 px-6 text-center relative z-20 flex items-center justify-center gap-3 animate-fade-rise text-zinc-200 text-xs sm:text-sm font-light select-none">
@@ -181,7 +258,18 @@ export default function App() {
           </>
         )}
 
+        {/* Global sticky media player hub */}
+        <GlobalFloatingPlayer />
+
       </div>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <MusicProvider>
+      <MainApp />
+    </MusicProvider>
   );
 }

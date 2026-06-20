@@ -150,6 +150,7 @@ export default function FocusSection({ isFocusModeActive, onToggleFocusMode }: F
                     onClick={() => {
                       triggerAudioTick();
                       setSelectedExpression(exp);
+                      playFakeExpressionSound(exp.jp);
                     }}
                     className={`w-full text-left p-3 rounded-xl border text-xs transition-all cursor-pointer flex justify-between items-center ${
                       selectedExpression.jp === exp.jp 
@@ -203,8 +204,23 @@ export default function FocusSection({ isFocusModeActive, onToggleFocusMode }: F
   );
 }
 
-// Simulated voice frequencies based on syllable lengths just to create an insanely organic tactile sound feedback
+// Native Speech Synthesis with Japanese locale, falls back to sweet synthetic soundscape
 function playFakeExpressionSound(jpText: string) {
+  try {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel(); // Silences previous utterances immediately
+      const utterance = new SpeechSynthesisUtterance(jpText);
+      utterance.lang = 'ja-JP';
+      utterance.rate = 0.85; // slightly relaxed for learner comfort
+      utterance.pitch = 1.05;
+      window.speechSynthesis.speak(utterance);
+      return;
+    }
+  } catch (err) {
+    console.warn("Speech synthesis unavailable, employing oscillator synth fallback", err);
+  }
+
+  // Backup synthetic oscillator feedback
   try {
     const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
     const length = jpText.length;
@@ -212,7 +228,7 @@ function playFakeExpressionSound(jpText: string) {
 
     for (let i = 0; i < length; i += 2) {
       const charCode = jpText.charCodeAt(i);
-      const freq = 180 + (charCode % 12) * 20; // Human pitch simulator
+      const freq = 180 + (charCode % 12) * 20;
       
       const osc = audioCtx.createOscillator();
       const gainNode = audioCtx.createGain();
@@ -232,6 +248,6 @@ function playFakeExpressionSound(jpText: string) {
       timeOffset += 0.14;
     }
   } catch (e) {
-    // browser sandbox blocked
+    // Sandbox blocked
   }
 }
