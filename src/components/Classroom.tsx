@@ -6,9 +6,10 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Volume2, BookOpen, Award, Smile, Gamepad2, Check, ChevronRight, 
-  Sparkles, RotateCcw, ArrowLeft, Clock, Brain, AlertTriangle, ShieldCheck, Trophy, Globe, Flame
+  Sparkles, RotateCcw, ArrowLeft, Clock, Brain, AlertTriangle, ShieldCheck, Trophy, Globe, Flame, Lock, HelpCircle
 } from 'lucide-react';
 import { UNGKAPAN_KELAS_SALAM, VOCABULARY_DATA, PARTICLE_QUESTIONS, SENTENCE_PUZZLES } from '../data';
+import { ALL_LESSONS } from '../data/lessonsData';
 
 interface ClassroomProps {
   onBackToLanding: () => void;
@@ -30,8 +31,16 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
 
   // Lesson states
   const [selectedLesson, setSelectedLesson] = useState<number>(1);
-  const [activeSectionUnderLesson, setActiveSectionUnderLesson] = useState<'kosakata' | 'tata' | 'dialog' | 'latihan'>('kosakata');
+  const [activeSectionUnderLesson, setActiveSectionUnderLesson] = useState<'kosakata' | 'tata' | 'dialog' | 'latihan' | 'kuis' | 'review'>('kosakata');
   const [streakCount, setStreakCount] = useState<number>(12);
+
+  // Lesson sub-interactive states
+  const [quizSelectedAnswer, setQuizSelectedAnswer] = useState<string>('');
+  const [quizSubmitted, setQuizSubmitted] = useState<boolean>(false);
+  const [drillAnswers, setDrillAnswers] = useState<Record<string, string>>({});
+  const [drillChecked, setDrillChecked] = useState<Record<string, boolean>>({});
+  const [activeLatihanAnswers, setActiveLatihanAnswers] = useState<Record<string, string>>({});
+  const [activeLatihanSubmitted, setActiveLatihanSubmitted] = useState<Record<string, boolean>>({});
 
   // Custom audio synthesizer tick for realistic spoken sounds of Kana
   const playKanaSound = (character: string, romaji: string) => {
@@ -434,265 +443,605 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
           </div>
         </div>
       )}
-
-      {/* ======================================================== */}
       {/* MODULE 2: MATERI KOMPLIT & DETAIL (MINNA NO NIHONGO CH) */}
       {/* ======================================================== */}
-      {activeTab === 'materi' && (
-        <div id="classroom-materi-module" className="animate-fade-rise space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            
-            {/* Sidebar list of complete lessons based on user's PRD requirements */}
-            <div className="lg:col-span-4 space-y-3">
-              <span className="text-xs uppercase tracking-widest text-zinc-400 font-bold px-1">Indeks Pelajaran Inti</span>
+      {activeTab === 'materi' && (() => {
+        const currentLessonData = ALL_LESSONS.find(l => l.id === selectedLesson) || ALL_LESSONS[0];
+        
+        return (
+          <div id="classroom-materi-module" className="animate-fade-rise space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
               
-              {[
-                { num: 1, title: 'Bab 1 — Salam Kenal!', subtitle: 'X wa Y desu (Perkenalan Diri)', flag: 'SSW / N5' },
-                { num: 2, title: 'Bab 2 — Mohon Bantuan Anda', subtitle: 'Kore, Sore, Are (Kata Benda)', flag: 'SSW / N5' },
-                { num: 3, title: 'Bab 3 — Berapa Harganya?', subtitle: 'Koko, Soko, Asoko (Arah & Harga)', flag: 'N5' },
-                { num: 4, title: 'Bab 4 — Pukul Berapa?', subtitle: 'Waktu Harian, Jam, Menit, Hari', flag: 'N5' }
-              ].map((les) => (
-                <button
-                  key={les.num}
-                  onClick={() => { triggerTick(220); setSelectedLesson(les.num); }}
-                  className={`w-full text-left p-5 rounded-2xl border transition-all duration-300 cursor-pointer ${
-                    selectedLesson === les.num 
-                      ? 'bg-white/10 border-white/20 text-white font-semibold' 
-                      : 'bg-white/2 hover:bg-white/5 border-white/5 text-zinc-400'
-                  }`}
-                >
-                  <div className="flex gap-4 items-center justify-between">
-                    <div>
-                      <h4 className="text-sm font-semibold">{les.title}</h4>
-                      <p className="text-xs text-zinc-500 font-light mt-0.5">{les.subtitle}</p>
-                    </div>
-                    <span className="text-[9px] uppercase px-2 py-0.5 bg-white/5 rounded-full font-bold text-zinc-400 shrink-0">
-                      {les.flag}
-                    </span>
-                  </div>
-                </button>
-              ))}
-            </div>
-
-            {/* Lesson detail viewer holding detailed professional lessons */}
-            <div className="lg:col-span-8">
-              <div className="liquid-glass rounded-3xl p-6 sm:p-8 border border-white/5 flex flex-col justify-between min-h-[500px]">
-                
-                {/* Lesson inner subsegments (Vocab, Gram, Dialog, Drill) */}
-                <div className="flex flex-wrap justify-between items-start gap-4 border-b border-white/5 pb-5 mb-6">
-                  <div>
-                    <span className="text-[10px] bg-yellow-500/10 border border-yellow-500/10 rounded-full px-2.5 py-1 text-yellow-300 uppercase tracking-widest font-extrabold flex items-center gap-1 inline-flex">
-                      <Sparkles className="w-3 h-3" />
-                      KURIKULUM MINNA NO NIHONGO
-                    </span>
-                    <h3 className="text-2xl font-display text-white mt-1 leading-none font-normal">
-                      Pelajaran {selectedLesson}
-                    </h3>
-                  </div>
-
-                  <div className="flex flex-wrap gap-1.5 text-xs">
-                    {[
-                      { id: 'kosakata', label: 'Kosakata' },
-                      { id: 'tata', label: 'Tata Bahasa' },
-                      { id: 'dialog', label: 'Dialog' },
-                      { id: 'latihan', label: 'Drill Tes' }
-                    ].map((sec) => (
-                      <button
-                        key={sec.id}
-                        onClick={() => { triggerTick(330); setActiveSectionUnderLesson(sec.id as any); }}
-                        className={`px-3 py-1.5 rounded-full transition-all cursor-pointer ${
-                          activeSectionUnderLesson === sec.id 
-                            ? 'bg-white text-slate-950 font-semibold' 
-                            : 'text-zinc-400 hover:text-white'
-                        }`}
-                      >
-                        {sec.label}
-                      </button>
-                    ))}
-                  </div>
+              {/* Sidebar list of complete lessons based on user's PRD requirements */}
+              <div className="lg:col-span-4 space-y-4 max-h-[80vh] overflow-y-auto pr-2 custom-scrollbar">
+                <div className="flex justify-between items-center px-1">
+                  <span className="text-xs uppercase tracking-widest text-zinc-400 font-bold">Tingkatan Kelas Kurikulum</span>
+                  <span className="text-[10px] bg-emerald-550/10 border border-emerald-500/10 text-emerald-300 font-mono font-bold px-2 py-0.5 rounded-full">Kelas 1-10</span>
                 </div>
-
-                {/* DYNAMIC LESSON SECTION CONTENTS */}
-                {activeSectionUnderLesson === 'kosakata' && (
-                  <div className="space-y-4 animate-fade-rise">
-                    <p className="text-xs text-zinc-400 font-light">Daftar kata wajib dihafal sebelum masuk ke bab ini. Ketuk ikon suara untuk menyimak ucapan native:</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {selectedLesson === 1 && [
-                        { jp: "わたし (Watashi)", rom: "Saya / Aku", cat: "Kata Ganti", desc: "Dipakai secara sopan umum." },
-                        { jp: "〜じん (〜Jin)", rom: "Orang dari negara 〜", cat: "Sufiks", desc: "Contoh: Indonesia-jin." },
-                        { jp: "はい (Hai)", rom: "Ya", cat: "Ungkapan", desc: "Bentuk menyetujui." },
-                        { jp: "いいえ (Iie)", rom: "Tidak", cat: "Ungkapan", desc: "Bentuk penolakan." }
-                      ].map((v, i) => (
-                        <div key={i} className="bg-white/2 border border-white/5 rounded-2xl p-4 flex justify-between items-center">
-                          <div>
-                            <h5 className="text-sm font-semibold text-white">{v.jp}</h5>
-                            <p className="text-xs text-zinc-400 font-light">{v.rom} • <span className="text-[10px] text-zinc-500">{v.cat}</span></p>
-                            <p className="text-[10px] text-zinc-500 italic mt-1">{v.desc}</p>
-                          </div>
-                          <button 
-                            onClick={() => playKanaSound(v.jp, 'a')}
-                            className="p-2 h-8 w-8 rounded-full border border-white/5 bg-white/5 hover:bg-white/10 active:scale-95 transition-all text-zinc-300 hover:text-white flex items-center justify-center cursor-pointer"
+                
+                {/* Collapsible/Grouped Level Folder of LPK Classes */}
+                {Array.from(new Set(ALL_LESSONS.map(l => l.classLevel))).map((classLvl) => {
+                  const classLessons = ALL_LESSONS.filter(l => l.classLevel === classLvl);
+                  return (
+                    <div key={classLvl} className="space-y-1.5 bg-white/2 p-3 rounded-2xl border border-white/5">
+                      <span className="text-[10px] font-mono tracking-wider font-extrabold text-yellow-500 px-2 uppercase block mb-1">
+                        {classLvl}
+                      </span>
+                      <div className="space-y-1">
+                        {classLessons.map((les) => (
+                          <button
+                            key={les.id}
+                            onClick={() => { 
+                              triggerTick(220); 
+                              setSelectedLesson(les.id); 
+                              // Reset state variables when changing Bab
+                              setQuizSelectedAnswer('');
+                              setQuizSubmitted(false);
+                              setDrillAnswers({});
+                              setDrillChecked({});
+                              setActiveLatihanAnswers({});
+                              setActiveLatihanSubmitted({});
+                              setActiveSectionUnderLesson('kosakata');
+                            }}
+                            className={`w-full text-left px-3 py-2.5 rounded-xl border transition-all duration-300 cursor-pointer text-xs ${
+                              selectedLesson === les.id 
+                                ? 'bg-white text-slate-950 font-bold border-white shadow-md scale-[1.01]' 
+                                : 'bg-white/3 hover:bg-white/8 border-white/5 text-zinc-300 hover:text-white'
+                            }`}
                           >
-                            <Volume2 className="w-3.5 h-3.5" />
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="truncate pr-1">
+                                Bab {les.id}: {les.title.split(': ')[1] || les.title}
+                              </span>
+                              <ChevronRight className={`w-3.5 h-3.5 shrink-0 transition-transform ${selectedLesson === les.id ? 'rotate-90 text-slate-950' : 'text-zinc-500'}`} />
+                            </div>
                           </button>
-                        </div>
-                      ))}
-
-                      {selectedLesson === 2 && [
-                        { jp: "これ (Kore)", rom: "Ini", cat: "Kata Benda", desc: "Dekat dengan pihak pembicara." },
-                        { jp: "それ (Sore)", rom: "Itu", cat: "Kata Benda", desc: "Dekat dengan pihak lawan bicara." },
-                        { jp: "あれ (Are)", rom: "Itu", cat: "Kata Benda", desc: "Jauh dari kedua pihak." },
-                        { jp: "ほん (Hon)", rom: "Buku", cat: "Kata Benda", desc: "Bahan bacaan umum." }
-                      ].map((v, i) => (
-                        <div key={i} className="bg-white/2 border border-white/5 rounded-2xl p-4 flex justify-between items-center">
-                          <div>
-                            <h5 className="text-sm font-semibold text-white">{v.jp}</h5>
-                            <p className="text-xs text-zinc-400 font-light">{v.rom} • <span className="text-[10px] text-zinc-500">{v.cat}</span></p>
-                            <p className="text-[10px] text-zinc-500 italic mt-1">{v.desc}</p>
-                          </div>
-                          <button 
-                            onClick={() => playKanaSound(v.jp, 'o')}
-                            className="p-2 h-8 w-8 rounded-full border border-white/5 bg-white/5 hover:bg-white/10 active:scale-95 transition-all text-zinc-300 hover:text-white flex items-center justify-center cursor-pointer"
-                          >
-                            <Volume2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ))}
-
-                      {selectedLesson >= 3 && [
-                        { jp: "ここ (Koko)", rom: "Di sini", cat: "Lokasi", desc: "Lokasi di dekat pembicara." },
-                        { jp: "そこ (Soko)", rom: "Di situ", cat: "Lokasi", desc: "Lokasi lawan bicara." },
-                        { jp: "あそこ (Asoko)", rom: "Di sana", cat: "Lokasi", desc: "Lokasi di kejauhan." },
-                        { jp: "いくら (Ikura)", rom: "Berapa Harganya?", cat: "Kata Tanya", desc: "Bertanya nilai nominal uang." }
-                      ].map((v, i) => (
-                        <div key={i} className="bg-white/2 border border-white/5 rounded-2xl p-4 flex justify-between items-center">
-                          <div>
-                            <h5 className="text-sm font-semibold text-white">{v.jp}</h5>
-                            <p className="text-xs text-zinc-400 font-light">{v.rom} • <span className="text-[10px] text-zinc-500">{v.cat}</span></p>
-                            <p className="text-[10px] text-zinc-500 italic mt-1">{v.desc}</p>
-                          </div>
-                          <button 
-                            onClick={() => playKanaSound(v.jp, 'u')}
-                            className="p-2 h-8 w-8 rounded-full border border-white/5 bg-white/5 hover:bg-white/10 active:scale-95 transition-all text-zinc-300 hover:text-white flex items-center justify-center cursor-pointer"
-                          >
-                            <Volume2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {activeSectionUnderLesson === 'tata' && (
-                  <div className="space-y-6 animate-fade-rise">
-                    <h4 className="text-lg font-semibold text-white flex items-center gap-2">
-                      <Brain className="w-5 h-5 text-zinc-400" />
-                      Analisis Struktur Guru Profesional
-                    </h4>
-                    
-                    {selectedLesson === 1 && (
-                      <div className="space-y-4">
-                        <div className="bg-white/3 p-5 rounded-2xl border border-white/5 space-y-2">
-                          <span className="text-[10px] uppercase font-bold tracking-widest text-zinc-500 block">Pola Rumus 1:</span>
-                          <span className="text-lg text-white font-mono font-medium block">KB1 は KB2 です</span>
-                          <span className="text-xs text-zinc-400 block italic">"KB1 adalah KB2"</span>
-                          <p className="text-sm text-zinc-300 font-light pt-2 border-t border-white/5 leading-relaxed">
-                            Partikel <strong>は (wa)</strong> digunakan sebagai penanda topik pembicaraan. Predikat kalimat diakhiri dengan kopula <strong>です (desu)</strong> yang menandakan kesopanan dan penegasan positif.
-                          </p>
-                        </div>
-                        <div className="bg-white/3 p-5 rounded-2xl border border-white/5 space-y-2">
-                          <span className="text-[10px] uppercase font-bold tracking-widest text-zinc-500 block">Pola Rumus 2:</span>
-                          <span className="text-lg text-white font-mono font-medium block">〜は〜じゃ ありません</span>
-                          <span className="text-xs text-zinc-400 block italic">"〜 bukanlah / adalah bukan 〜"</span>
-                          <p className="text-sm text-zinc-300 font-light pt-2 border-t border-white/5 leading-relaxed">
-                            Pola negatif dari <strong>です (desu)</strong> adalah <strong>じゃ ありません (ja arimasen)</strong>. Dalam ragam penulisan resmi formal digunakan pula <strong>では ありません (dewa arimasen)</strong>.
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    {selectedLesson === 2 && (
-                      <div className="space-y-4">
-                        <div className="bg-white/3 p-5 rounded-2xl border border-white/5 space-y-2">
-                          <span className="text-[10px] uppercase font-bold tracking-widest text-zinc-500 block">Kore, Sore, Are:</span>
-                          <p className="text-sm text-zinc-300 font-light leading-relaxed">
-                            Digunakan sebagai kata tunjuk benda murni. <strong>Kore</strong> menunjuk benda di dekat speaker. <strong>Sore</strong> di dekat lawan bicara. <strong>Are</strong> jauh dari keduanya.
-                          </p>
-                        </div>
-                        <div className="bg-white/3 p-5 rounded-2xl border border-white/5 space-y-2">
-                          <span className="text-[10px] uppercase font-bold tracking-widest text-zinc-500 block">Hubungan Pola Menerangkan:</span>
-                          <span className="text-base text-white font-mono font-medium block">Kata Benda1 の Kata Benda2</span>
-                          <p className="text-sm text-zinc-300 font-light pt-1 border-t border-white/5 leading-relaxed">
-                            Partikel <strong>の (no)</strong> merangkaikan hubungan modifikasi. Contoh kepemilikan:  <em>watashi no hon</em> (buku saya).
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    {selectedLesson >= 3 && (
-                      <div className="space-y-4">
-                        <div className="bg-white/3 p-5 rounded-2xl border border-white/5 space-y-2">
-                          <span className="text-[10px] uppercase font-bold tracking-widest text-zinc-500 block">Bertanya Berapa Harga:</span>
-                          <span className="text-lg text-white font-mono font-medium block">これは いくら ですか</span>
-                          <p className="text-sm text-zinc-300 font-light pt-1 border-t border-white/5 leading-relaxed">
-                            Gunakan partikel tanya <strong>か (ka)</strong> di ujung kalimat tanpa perlu memakai tanda tanya Latin.
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {activeSectionUnderLesson === 'dialog' && (
-                  <div className="space-y-6 animate-fade-rise">
-                    <p className="text-xs text-zinc-400 font-light">Simulasi adegan dialog harian yang sering diujikan dalam tes SSW dan JLPT N5-N4. Simak lagunya:</p>
-                    
-                    <div className="bg-slate-950/30 p-5 rounded-2xl border border-white/5 space-y-4 text-left">
-                      <div className="border-l-4 border-amber-400 pl-3">
-                        <span className="text-[10px] uppercase font-semibold text-zinc-500 block">Guru Satuan / Sensei:</span>
-                        <p className="text-sm text-white font-display">はじめまして。(Hajimemashite.)</p>
-                        <p className="text-xs text-zinc-400 font-light">"Senang berkenalan denganmu."</p>
-                      </div>
-
-                      <div className="border-l-4 border-zinc-500 pl-3">
-                        <span className="text-[10px] uppercase font-semibold text-zinc-500 block">Peserta / Murid:</span>
-                        <p className="text-sm text-white font-display">はじめまして、ルカです。インドネシアから来ました。どうぞよろしく。(Hajimemashite, Ruka desu. Indonesia kara kimashite. Douzo yoroshiku.)</p>
-                        <p className="text-xs text-zinc-400 font-light">"Perkenalkan saya Ruka, datang dari Indonesia. Mohon bantuannya."</p>
+                        ))}
                       </div>
                     </div>
-
-                    <button 
-                      onClick={() => playKanaSound('はじめまして', 'a')}
-                      className="liquid-glass text-xs font-semibold px-5 py-3 rounded-full text-white hover:scale-105 transition-all text-center mx-auto flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      <Volume2 className="w-4 h-4" />
-                      Mainkan Percakapan Natural
-                    </button>
-                  </div>
-                )}
-
-                {activeSectionUnderLesson === 'latihan' && (
-                  <div className="space-y-6 animate-fade-rise text-center py-6">
-                    <Trophy className="w-12 h-12 text-zinc-400 mx-auto mb-3" />
-                    <h4 className="text-lg font-display text-white">Siap Menguji Penguasaan Bab?</h4>
-                    <p className="text-xs text-zinc-400 max-w-sm mx-auto font-light leading-relaxed">
-                      Latihan bab berisi drilling partikel pelengkap dan kalimat acak yang diadaptasi dari tes uji kompetensi bahasa Jepang.
-                    </p>
-                    <button
-                      onClick={() => { triggerTick(); setActiveTab('game'); }}
-                      className="liquid-glass text-xs font-semibold px-6 py-3 rounded-full text-white hover:scale-105 active:scale-95 transition-all cursor-pointer"
-                    >
-                      Buka Game Latihan
-                    </button>
-                  </div>
-                )}
-
+                  );
+                })}
               </div>
-            </div>
 
+              {/* Lesson detail viewer holding detailed professional lessons */}
+              <div className="lg:col-span-8">
+                <div className="liquid-glass rounded-3xl p-6 sm:p-8 border border-white/5 flex flex-col justify-between min-h-[500px]">
+                  
+                  {/* Lesson inner subsegments (Vocab, Gram, Dialog, Drill, Quiz, Review) */}
+                  <div className="flex flex-col sm:flex-row justify-between items-start gap-4 border-b border-white/5 pb-5 mb-6">
+                    <div className="text-left">
+                      <span className="text-[9px] sm:text-[10px] bg-yellow-500/15 border border-yellow-500/20 rounded-full px-2.5 py-1 text-yellow-300 uppercase tracking-widest font-extrabold flex items-center gap-1 inline-flex">
+                        <Sparkles className="w-3 h-3 text-yellow-300" />
+                        KURIKULUM MINNA NO NIHONGO • {currentLessonData.classLevel}
+                      </span>
+                      <h3 className="text-xl sm:text-2xl font-display text-white mt-1 leading-tight font-normal">
+                        Pelajaran {currentLessonData.id}: {currentLessonData.title.split(': ')[1] || currentLessonData.title}
+                      </h3>
+                      <p className="text-[11px] text-zinc-400 mt-0.5 italic">Situasi: {currentLessonData.theme} • Estimasi: {currentLessonData.estimatedMinutes} Menit</p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1 text-[10px] sm:text-xs">
+                      {[
+                        { id: 'kosakata', label: 'Kosakata' },
+                        { id: 'tata', label: 'Pola & Tata Bahasa' },
+                        { id: 'dialog', label: 'Dialog' },
+                        { id: 'latihan', label: 'Latihan A,B,C' },
+                        { id: 'kuis', label: 'Kuis Akhir' },
+                        { id: 'review', label: 'Kultur & Review' }
+                      ].map((sec) => (
+                        <button
+                          key={sec.id}
+                          onClick={() => { triggerTick(330); setActiveSectionUnderLesson(sec.id as any); }}
+                          className={`px-3 py-1.5 rounded-full transition-all cursor-pointer ${
+                            activeSectionUnderLesson === sec.id 
+                              ? 'bg-white text-slate-950 font-bold' 
+                              : 'text-zinc-400 hover:text-white bg-white/3 hover:bg-white/8 border border-white/5'
+                          }`}
+                        >
+                          {sec.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Objective Checklist Widget */}
+                  <div className="mb-6 bg-white/2 border border-white/5 rounded-2xl p-4 text-left">
+                    <span className="text-[9px] uppercase font-bold tracking-widest text-zinc-400 block mb-2">Target Kemampuan Bab Ini:</span>
+                    <ul className="space-y-1 text-xs text-zinc-300 font-light font-sans">
+                      {currentLessonData.objectives.map((obj, i) => (
+                        <li key={i} className="flex items-start gap-2">
+                          <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                          <span>{obj}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* DYNAMIC LESSON SECTION CONTENTS */}
+                  {activeSectionUnderLesson === 'kosakata' && (
+                    <div className="space-y-4 animate-fade-rise text-left">
+                      <p className="text-xs text-zinc-400 font-light">Daftar kosakata wajib dikuasai sebelum praktik kalimat. Sentuh lafal suara untuk mendengarkan lafal aslinya:</p>
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[50vh] overflow-y-auto pr-1">
+                        {currentLessonData.vocabulary.map((v, i) => (
+                          <div key={i} className="bg-white/2 border border-white/5 rounded-2xl p-4 flex justify-between items-center group">
+                            <div>
+                              <h5 className="text-sm font-semibold text-white group-hover:text-yellow-300 transition-colors">{v.jp}</h5>
+                              <p className="text-xs text-zinc-305 font-medium">{v.rom} • <span className="text-[10px] text-zinc-500">{v.type}</span></p>
+                              <p className="text-xs text-zinc-400 mt-1">{v.translation}</p>
+                              <p className="text-[10px] text-zinc-500 italic mt-0.5">{v.desc}</p>
+                            </div>
+                            <button 
+                              onClick={() => playKanaSound(v.jp, v.rom.toLowerCase())}
+                              className="p-2 h-8 w-8 rounded-full border border-white/5 bg-white/5 hover:bg-white/10 active:scale-95 transition-all text-zinc-300 hover:text-white flex items-center justify-center cursor-pointer shrink-0"
+                            >
+                              <Volume2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {activeSectionUnderLesson === 'tata' && (
+                    <div className="space-y-6 animate-fade-rise text-left max-h-[60vh] overflow-y-auto pr-1">
+                      
+                      {/* Subsegment: Pola Kalimat */}
+                      <div className="space-y-3">
+                        <span className="text-xs uppercase tracking-widest text-[10px] font-bold text-zinc-400 block">1. Contoh Pola Kalimat Acuan (例文)</span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {currentLessonData.sentencePatterns.map((pat, idx) => (
+                            <div key={idx} className="bg-white/2 border border-white/5 rounded-2xl p-4 flex flex-col justify-center">
+                              <span className="text-base text-white font-mono font-medium block">{pat.pattern}</span>
+                              <span className="text-xs text-zinc-400 block mt-1 italic font-light">"{pat.meaning}"</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Subsegment: Penjelasan Tatabahasa Utama */}
+                      <div className="space-y-4 pt-4 border-t border-white/5">
+                        <span className="text-xs uppercase tracking-widest text-[10px] font-bold text-zinc-400 block">2. Analisis & Penjelasan Tatabahasa</span>
+                        
+                        {currentLessonData.grammarPoints.map((gp, idx) => (
+                          <div key={idx} className="bg-white/3 p-5 rounded-2xl border border-white/5 space-y-3">
+                            <h5 className="text-sm font-semibold text-white flex items-center gap-2">
+                              <span className="w-1.5 h-1.5 rounded-full bg-yellow-400" />
+                              {gp.title}
+                            </h5>
+                            <p className="text-xs sm:text-sm text-zinc-300 font-light leading-relaxed">
+                              {gp.explanation}
+                            </p>
+                            
+                            {/* Standard Usage Examples */}
+                            <div className="bg-slate-950/40 p-4 rounded-xl border border-white/5 space-y-1 text-left">
+                              <span className="text-[10px] uppercase font-bold tracking-widest text-zinc-500 block">Kalimat Contoh:</span>
+                              <span className="text-base text-white font-mono block select-all">{gp.exJp}</span>
+                              <p className="text-xs text-zinc-400 font-mono italic">({gp.exRom})</p>
+                              <span className="text-xs text-zinc-300 block mt-1">Artinya: "{gp.exId}"</span>
+                            </div>
+
+                            {/* Common mistake block */}
+                            {gp.commonMistakeJp && (
+                              <div className="bg-amber-500/5 border border-amber-500/10 rounded-xl p-4 space-y-1 text-left">
+                                <span className="text-[10px] uppercase font-bold tracking-widest text-amber-400 flex items-center gap-1.5">
+                                  <AlertTriangle className="w-3.5 h-3.5 text-amber-450" />
+                                  Kekeliruan Pemula — Jangan Ditiru!
+                                </span>
+                                <p className="text-xs text-amber-200/90 font-mono line-through font-light mt-1">❌ {gp.commonMistakeJp}</p>
+                                <p className="text-[11px] text-zinc-400 font-light leading-relaxed mt-0.5">Analisis: {gp.commonMistakeId}</p>
+                              </div>
+                            )}
+
+                            {/* Live Interactive Drill Box */}
+                            {gp.drillText && (
+                              <div className="bg-white/2 border border-white/5 rounded-xl p-4 space-y-2 text-left">
+                                <span className="text-[10px] uppercase font-bold tracking-widest text-zinc-400 flex items-center gap-1.5">
+                                  <Brain className="w-3.5 h-3.5 text-cyan-300" />
+                                  Micro-Drill di Tempat
+                                </span>
+                                <p className="text-xs text-zinc-200">{gp.drillText}</p>
+                                <div className="flex flex-col sm:flex-row gap-2">
+                                  <input
+                                    type="text"
+                                    value={drillAnswers[`gp_${selectedLesson}_${idx}`] || ''}
+                                    onChange={(e) => setDrillAnswers({ 
+                                      ...drillAnswers, 
+                                      [`gp_${selectedLesson}_${idx}`]: e.target.value 
+                                    })}
+                                    placeholder="Ketik jawaban bahasa Jepang di sini..."
+                                    className="bg-slate-950/40 border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-white/20 flex-1 font-mono"
+                                  />
+                                  <button
+                                    onClick={() => {
+                                      const userStr = (drillAnswers[`gp_${selectedLesson}_${idx}`] || '').trim().replace(/\s+/g, '');
+                                      const solStr = (gp.drillSolution || '').trim().replace(/\s+/g, '');
+                                      const match = userStr === solStr;
+                                      
+                                      if (match) {
+                                        triggerTick(880);
+                                      } else {
+                                        triggerTick(150);
+                                      }
+                                      
+                                      setDrillChecked({ 
+                                        ...drillChecked, 
+                                        [`gp_${selectedLesson}_${idx}`]: true 
+                                      });
+                                    }}
+                                    className="bg-white text-slate-950 font-extrabold text-xs uppercase px-4 py-2 rounded-xl active:scale-95 transition-all cursor-pointer"
+                                  >
+                                    Periksa
+                                  </button>
+                                </div>
+                                {drillChecked[`gp_${selectedLesson}_${idx}`] && (
+                                  <div className="text-xs font-semibold mt-1">
+                                    {(drillAnswers[`gp_${selectedLesson}_${idx}`] || '').trim().replace(/\s+/g, '') === (gp.drillSolution || '').trim().replace(/\s+/g, '') ? (
+                                      <span className="text-emerald-400 flex items-center gap-1">✓ Jawaban Anda Benar! Kerja bagus.</span>
+                                    ) : (
+                                      <div className="text-rose-450 block space-y-0.5">
+                                        <span>✗ Kurang pas, perhatikan susunan partikelnya.</span>
+                                        <span className="text-zinc-500 font-light block">Jawaban benar: <strong className="text-zinc-250 font-mono select-all font-bold">{gp.drillSolution}</strong></span>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                          </div>
+                        ))}
+                      </div>
+
+                    </div>
+                  )}
+
+                  {activeSectionUnderLesson === 'dialog' && (
+                    <div className="space-y-6 animate-fade-rise text-left max-h-[55vh] overflow-y-auto pr-1">
+                      <p className="text-xs text-zinc-400 font-light">Latih interaksi lisan natural dari skenario kehidupan nyata di asrama atau pabrik Jepang:</p>
+                      
+                      <div className="space-y-4">
+                        {currentLessonData.dialogue.map((dlg, idx) => (
+                          <div 
+                            key={idx} 
+                            className={`p-4 rounded-2xl border flex flex-col ${
+                              dlg.speaker === 'ルカ' || dlg.speaker === '実üş生' || dlg.speaker === '実習生'
+                                ? 'bg-white/5 border-white/10 ml-6 border-l-4 border-l-yellow-405'
+                                : 'bg-slate-950/20 border-white/5 mr-6 border-l-4 border-l-zinc-500'
+                            }`}
+                          >
+                            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1 block">
+                              {dlg.speaker}
+                            </span>
+                            <span className="text-base text-white font-display select-all leading-relaxed block">
+                              {dlg.textJp}
+                            </span>
+                            <span className="text-xs text-zinc-400 italic block mt-0.5">
+                              {dlg.textRom}
+                            </span>
+                            <p className="text-xs text-zinc-300 font-sans mt-2 border-t border-white/3 pt-1">
+                              "{dlg.textId}"
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+
+                      <button 
+                        onClick={() => {
+                          const firstLine = currentLessonData.dialogue[0];
+                          if (firstLine) {
+                            playKanaSound(firstLine.textJp, firstLine.textRom);
+                          }
+                        }}
+                        className="liquid-glass text-xs font-bold uppercase px-6 py-3.5 rounded-full text-white hover:scale-105 active:scale-95 transition-all text-center mx-auto flex items-center justify-center gap-2 cursor-pointer mt-6"
+                      >
+                        <Volume2 className="w-4 h-4 text-white" />
+                        Mainkan Simulasi Suara Native
+                      </button>
+                    </div>
+                  )}
+
+                  {activeSectionUnderLesson === 'latihan' && (
+                    <div className="space-y-6 animate-fade-rise text-left max-h-[60vh] overflow-y-auto pr-1">
+                      <p className="text-xs text-zinc-400 font-light">Selesaikan rangkaian tes Latihan A, B, dan C berdasarkan materi penunjang pembelajaran:</p>
+                      
+                      <div className="space-y-5">
+                        {currentLessonData.exercises.map((exe, i) => {
+                          const questionId = `ex_${selectedLesson}_${i}`;
+                          const answered = activeLatihanAnswers[questionId];
+                          const submitted = activeLatihanSubmitted[questionId];
+                          
+                          return (
+                            <div key={i} className="bg-white/3 p-5 rounded-2xl border border-white/5 space-y-3">
+                              <div className="flex justify-between items-center">
+                                <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-400 font-bold">
+                                  LATIHAN {exe.type} — {exe.title}
+                                </span>
+                                {submitted && (
+                                  <span className={`text-[10px] uppercase font-bold font-mono ${answered === exe.correct ? 'text-emerald-400' : 'text-rose-450'}`}>
+                                    {answered === exe.correct ? 'BENAR' : 'SALAH'}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-sm font-semibold text-white">{exe.sentence}</p>
+                              
+                              {/* Option choices */}
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                {exe.options.map((opt, oIdx) => (
+                                  <button
+                                    key={oIdx}
+                                    onClick={() => {
+                                      if (!submitted) {
+                                        triggerTick(440);
+                                        setActiveLatihanAnswers({
+                                          ...activeLatihanAnswers,
+                                          [questionId]: opt
+                                        });
+                                      }
+                                    }}
+                                    disabled={submitted}
+                                    className={`p-3 rounded-xl border text-xs text-left transition-all ${
+                                      answered === opt
+                                        ? submitted
+                                          ? opt === exe.correct
+                                            ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
+                                            : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                                          : 'bg-white text-slate-950 font-bold border-white'
+                                        : 'bg-white/3 hover:bg-white/7 border-white/5 text-zinc-350'
+                                    }`}
+                                  >
+                                    {opt}
+                                  </button>
+                                ))}
+                              </div>
+
+                              {/* Submission panel */}
+                              {!submitted ? (
+                                <button
+                                  onClick={() => {
+                                    if (answered) {
+                                      const isCorrect = answered === exe.correct;
+                                      triggerTick(isCorrect ? 880 : 150);
+                                      setActiveLatihanSubmitted({
+                                        ...activeLatihanSubmitted,
+                                        [questionId]: true
+                                      });
+                                    } else {
+                                      triggerTick(220);
+                                    }
+                                  }}
+                                  disabled={!answered}
+                                  className={`px-4 py-2 rounded-xl text-xs font-bold uppercase transition-all ${
+                                    answered 
+                                      ? 'bg-white/10 text-white border border-white/10 hover:bg-white/15 cursor-pointer' 
+                                      : 'bg-white/2 border border-white/5 text-zinc-550 cursor-not-allowed'
+                                  }`}
+                                >
+                                  Verifikasi Jawaban
+                                </button>
+                              ) : (
+                                <div className="space-y-1.5 pt-2 border-t border-white/5 text-xs">
+                                  <span className="text-zinc-550 block uppercase text-[9px] font-bold">Ulasan Guru Pendamping:</span>
+                                  <p className="text-zinc-300 font-light">{exe.explanation}</p>
+                                  <span className="text-zinc-500 block">Kunci Jawaban: <strong className="text-white font-mono">{exe.correct}</strong></span>
+                                  <button
+                                    onClick={() => {
+                                      triggerTick(330);
+                                      const updatedAnswers = { ...activeLatihanAnswers };
+                                      delete updatedAnswers[questionId];
+                                      const updatedSubmitted = { ...activeLatihanSubmitted };
+                                      delete updatedSubmitted[questionId];
+                                      
+                                      setActiveLatihanAnswers(updatedAnswers);
+                                      setActiveLatihanSubmitted(updatedSubmitted);
+                                    }}
+                                    className="text-[10px] text-zinc-400 hover:text-white uppercase transition-colors shrink-0 underline block pt-1 cursor-pointer"
+                                  >
+                                    Ulangi Menjawab
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                    </div>
+                  )}
+
+                  {activeSectionUnderLesson === 'kuis' && (() => {
+                    const lessonQuiz = currentLessonData.quiz[0];
+                    if (!lessonQuiz) return (
+                      <div className="py-8 text-center text-zinc-500 font-light">Tidak ada kuis untuk bab ini.</div>
+                    );
+
+                    const isQuizCorrect = quizSelectedAnswer === lessonQuiz.answer;
+
+                    return (
+                      <div className="space-y-6 animate-fade-rise text-left max-h-[55vh] overflow-y-auto pr-1">
+                        <div className="flex items-center gap-2 border-b border-white/5 pb-3">
+                          <HelpCircle className="w-5 h-5 text-yellow-350" />
+                          <span className="text-sm font-semibold text-white">Evaluasi Mandiri Ujian Kelas</span>
+                        </div>
+
+                        <div className="bg-white/3 border border-white/5 rounded-3xl p-6 space-y-4">
+                          <p className="text-sm sm:text-base font-semibold text-white">
+                            {lessonQuiz.question}
+                          </p>
+
+                          <div className="flex flex-col gap-2">
+                            {lessonQuiz.options.map((option, idx) => (
+                              <button
+                                key={idx}
+                                onClick={() => {
+                                  if (!quizSubmitted) {
+                                    triggerTick(440);
+                                    setQuizSelectedAnswer(option);
+                                  }
+                                }}
+                                disabled={quizSubmitted}
+                                className={`w-full text-left p-4 rounded-2xl border text-xs sm:text-sm transition-all ${
+                                  quizSelectedAnswer === option
+                                    ? quizSubmitted
+                                      ? isQuizCorrect
+                                        ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20 font-semibold'
+                                        : 'bg-rose-500/10 text-rose-450 border-rose-500/20 font-semibold'
+                                      : 'bg-white text-slate-950 font-bold border-white scale-[1.01]'
+                                    : 'bg-white/3 hover:bg-white/6 border-white/5 text-zinc-300'
+                                }`}
+                              >
+                                {option}
+                              </button>
+                            ))}
+                          </div>
+
+                          {!quizSubmitted ? (
+                            <button
+                              onClick={() => {
+                                if (quizSelectedAnswer) {
+                                  triggerTick(quizSelectedAnswer === lessonQuiz.answer ? 880 : 150);
+                                  setQuizSubmitted(true);
+                                } else {
+                                  triggerTick(220);
+                                }
+                              }}
+                              disabled={!quizSelectedAnswer}
+                              className={`w-full py-4 rounded-2xl text-xs font-bold uppercase transition-all tracking-wider ${
+                                quizSelectedAnswer 
+                                  ? 'bg-white text-slate-950 hover:bg-zinc-200 cursor-pointer shadow-lg font-extrabold' 
+                                  : 'bg-white/5 text-zinc-550 border border-white/5 cursor-not-allowed'
+                              }`}
+                            >
+                              Kirim Jawaban Kuis
+                            </button>
+                          ) : (
+                            <div className="bg-slate-950/40 p-5 rounded-2xl border border-white/5 space-y-3 mt-3">
+                              <div className="flex items-center gap-2">
+                                {isQuizCorrect ? (
+                                  <div className="flex items-center gap-1.5 text-emerald-400 text-xs font-bold">
+                                    <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                                    <span>✓ EVALUASI LULUS!</span>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-1.5 text-rose-400 text-xs font-bold">
+                                    <AlertTriangle className="w-5 h-5 text-rose-450" />
+                                    <span>✗ JAWABAN KURANG TEPAT</span>
+                                  </div>
+                                )}
+                              </div>
+                              <p className="text-xs text-zinc-300 leading-relaxed font-light">
+                                <strong className="text-white">Analisis Guru:</strong> {lessonQuiz.explanation}
+                              </p>
+                              <p className="text-xs text-zinc-400 font-mono">Pilihan Jawaban Benar: <strong className="text-white">{lessonQuiz.answer}</strong></p>
+                              
+                              <button
+                                onClick={() => {
+                                  triggerTick(220);
+                                  setQuizSelectedAnswer('');
+                                  setQuizSubmitted(false);
+                                }}
+                                className="mt-2 text-xs text-white underline hover:text-zinc-300 transition-colors uppercase cursor-pointer"
+                              >
+                                Coba Jawab Ulang Kuis
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {activeSectionUnderLesson === 'review' && (
+                    <div className="space-y-6 animate-fade-rise text-left max-h-[55vh] overflow-y-auto pr-1">
+                      
+                      {/* Culture note card */}
+                      <div className="bg-gradient-to-br from-cyan-950/20 to-blue-950/10 border border-cyan-500/10 rounded-2xl p-5 sm:p-6 space-y-3">
+                        <span className="text-[10px] bg-cyan-500/10 border border-cyan-500/10 rounded-full px-2.5 py-1 text-cyan-300 uppercase tracking-widest font-extrabold flex items-center gap-1.5 inline-flex">
+                          <Globe className="w-3.5 h-3.5 text-cyan-400" />
+                          FAKTOR KOMPETENSI INDIVIDU LINGKUNGAN JEPANG
+                        </span>
+                        <h4 className="text-sm font-semibold text-white">Catatan Budaya (Kultur Kerja & Etiket)</h4>
+                        <p className="text-xs sm:text-sm text-cyan-100/90 leading-relaxed font-light font-sans">
+                          {currentLessonData.cultureNote}
+                        </p>
+                      </div>
+
+                      {/* Review checklist summary folders */}
+                      <div className="space-y-3">
+                        <span className="text-xs uppercase tracking-widest text-[10px] font-bold text-zinc-400 block">Kualifikasi Yang Dipenuhi Bab Ini:</span>
+                        <div className="space-y-2">
+                          {currentLessonData.reviewSummary.map((sm, id) => (
+                            <div key={id} className="bg-white/2 border border-white/5 rounded-xl p-3.5 flex items-center gap-3">
+                              <div className="p-1 rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-500/15 shrink-0">
+                                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                              </div>
+                              <span className="text-xs sm:text-sm text-zinc-300 font-light font-sans">{sm}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                    </div>
+                  )}
+
+                  {/* Navigational lesson footer */}
+                  <div className="flex justify-between items-center pt-6 border-t border-white/5 mt-8 text-xs">
+                    <button
+                      onClick={() => {
+                        if (selectedLesson > 1) {
+                          triggerTick(330);
+                          setSelectedLesson(selectedLesson - 1);
+                          setQuizSelectedAnswer('');
+                          setQuizSubmitted(false);
+                          setDrillAnswers({});
+                          setDrillChecked({});
+                          setActiveLatihanAnswers({});
+                          setActiveLatihanSubmitted({});
+                          setActiveSectionUnderLesson('kosakata');
+                        }
+                      }}
+                      disabled={selectedLesson === 1}
+                      className={`px-4 py-2 rounded-xl transition-all ${
+                        selectedLesson === 1 
+                          ? 'text-zinc-600 border border-white/3 bg-transparent cursor-not-allowed' 
+                          : 'text-zinc-300 hover:text-white border border-white/5 bg-white/3 hover:bg-white/8 cursor-pointer'
+                      }`}
+                    >
+                      ← Pelajaran Sebelumnya
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        if (selectedLesson < ALL_LESSONS.length) {
+                          triggerTick(330);
+                          setSelectedLesson(selectedLesson + 1);
+                          setQuizSelectedAnswer('');
+                          setQuizSubmitted(false);
+                          setDrillAnswers({});
+                          setDrillChecked({});
+                          setActiveLatihanAnswers({});
+                          setActiveLatihanSubmitted({});
+                          setActiveSectionUnderLesson('kosakata');
+                        }
+                      }}
+                      disabled={selectedLesson === ALL_LESSONS.length}
+                      className={`px-4 py-2 rounded-xl transition-all ${
+                        selectedLesson === ALL_LESSONS.length 
+                          ? 'text-zinc-600 border border-white/3 bg-transparent cursor-not-allowed' 
+                          : 'text-zinc-300 hover:text-white border border-white/5 bg-white/3 hover:bg-white/8 cursor-pointer'
+                      }`}
+                    >
+                      Pelajaran Berikutnya →
+                    </button>
+                  </div>
+
+                </div>
+              </div>
+
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ======================================================== */}
       {/* MODULE 3: INTERACTIVE TIMED GAME WITH DIFFICULTY */}
