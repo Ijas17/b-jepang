@@ -21,6 +21,28 @@ export default function App() {
   const [welcomeTip, setWelcomeTip] = useState(true);
   const [isInsideApp, setIsInsideApp] = useState(false);
 
+  // Handle validating onboarding completion before entering the app
+  const handleEnterApp = () => {
+    try {
+      const saved = localStorage.getItem('ruka_onboarding');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.completed) {
+          setIsInsideApp(true);
+          return;
+        }
+      }
+    } catch (e) {}
+    
+    // Smooth scroll down to the Onboarding form
+    const onboardingEl = document.getElementById('onboarding');
+    if (onboardingEl) {
+      onboardingEl.scrollIntoView({ behavior: 'smooth' });
+      // Dispatch a custom event to highlight or focus on the name field
+      window.dispatchEvent(new Event('ruka_onboarding_scroll_highlight'));
+    }
+  };
+
   // Smooth scroll handler which aligns perfectly with modern multi-view SPAs
   const handleNavClick = (sectionId: string) => {
     setActiveSection(sectionId);
@@ -101,7 +123,7 @@ export default function App() {
           onNavClick={handleNavClick} 
           activeSection={activeSection} 
           isInsideApp={isInsideApp}
-          onEnterApp={() => setIsInsideApp(true)}
+          onEnterApp={handleEnterApp}
           onExitApp={() => setIsInsideApp(false)}
         />
 
@@ -117,7 +139,7 @@ export default function App() {
               <Hero 
                 onStartClick={() => handleNavClick('roadmap')} 
                 onExplorationClick={() => handleNavClick('keunggulan')} 
-                onEnterApp={() => setIsInsideApp(true)}
+                onEnterApp={handleEnterApp}
               />
             </div>
 
@@ -151,7 +173,7 @@ export default function App() {
 
             {/* Section Onboarding / Peta Rencana Belajar personal */}
             <div id="onboarding">
-              <CTASection />
+              <CTASection onOnboardingComplete={() => setIsInsideApp(true)} />
             </div>
           </>
         )}
