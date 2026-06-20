@@ -9,9 +9,10 @@ import { ArrowRight, Play, BookOpen, Volume2, Shield } from 'lucide-react';
 interface HeroProps {
   onStartClick: () => void;
   onExplorationClick: () => void;
+  onEnterApp?: () => void;
 }
 
-export default function Hero({ onStartClick, onExplorationClick }: HeroProps) {
+export default function Hero({ onStartClick, onExplorationClick, onEnterApp }: HeroProps) {
   return (
     <section 
       id="hero-section" 
@@ -47,22 +48,21 @@ export default function Hero({ onStartClick, onExplorationClick }: HeroProps) {
         {/* Hero Actions using Liquid Glass styled controls */}
         <div 
           id="hero-actions" 
-          className="flex flex-col sm:flex-row gap-5 items-center justify-center w-full max-w-md animate-fade-rise-delay-2"
+          className="flex flex-col sm:flex-row gap-5 items-center justify-center w-full max-w-2xl animate-fade-rise-delay-2"
         >
           <button
-            onClick={onStartClick}
-            className="liquid-glass text-white px-8 py-4 rounded-full text-base font-semibold tracking-wider hover:scale-[1.03] active:scale-[98%] transition-all cursor-pointer shadow-lg w-full sm:w-auto flex items-center justify-center gap-2 group border border-white/20"
+            onClick={onEnterApp}
+            className="liquid-glass text-white px-8 py-4 rounded-full text-base font-bold tracking-wider hover:scale-[1.04] active:scale-[98%] transition-all cursor-pointer shadow-lg w-full sm:w-auto flex items-center justify-center gap-2 group border border-white/20 ring-2 ring-white/10"
           >
-            Mulai Dari Fase 0
+            Masuk Kelas Belajar
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
           </button>
 
           <button
-            onClick={onExplorationClick}
+            onClick={onStartClick}
             className="px-8 py-4 rounded-full text-base font-medium text-zinc-300 hover:text-white hover:bg-white/5 border border-white/5 backdrop-blur-xs transition-all w-full sm:w-auto flex items-center justify-center gap-2 cursor-pointer"
           >
-            <Play className="w-4 h-4 fill-current text-white/90" />
-            Eksplorasi Kurikulum
+            Melihat Alur Roadmap
           </button>
         </div>
 

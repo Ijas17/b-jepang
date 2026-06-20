@@ -12,12 +12,14 @@ import Games from './components/Games';
 import Playlist from './components/Playlist';
 import FocusSection from './components/FocusSection';
 import CTASection from './components/CTASection';
+import Classroom from './components/Classroom';
 import { Volume2, Sparkles, BookOpen, Smile, ShieldAlert } from 'lucide-react';
 
 export default function App() {
   const [activeSection, setActiveSection] = useState('home');
   const [isFocusModeActive, setIsFocusModeActive] = useState(false);
   const [welcomeTip, setWelcomeTip] = useState(true);
+  const [isInsideApp, setIsInsideApp] = useState(false);
 
   // Smooth scroll handler which aligns perfectly with modern multi-view SPAs
   const handleNavClick = (sectionId: string) => {
@@ -95,50 +97,64 @@ export default function App() {
         )}
 
         {/* Navbar */}
-        <Navbar onNavClick={handleNavClick} activeSection={activeSection} />
+        <Navbar 
+          onNavClick={handleNavClick} 
+          activeSection={activeSection} 
+          isInsideApp={isInsideApp}
+          onEnterApp={() => setIsInsideApp(true)}
+          onExitApp={() => setIsInsideApp(false)}
+        />
 
-        {/* Content sections sequentially to form a long, complete, comprehensive landing page */}
-        
-        {/* Home/Hero Section */}
-        <div id="home">
-          <Hero 
-            onStartClick={() => handleNavClick('roadmap')} 
-            onExplorationClick={() => handleNavClick('keunggulan')} 
-          />
-        </div>
-
-        {/* Section Features / Keunggulan Utama */}
-        <div id="keunggulan">
-          <Features />
-        </div>
-
-        {/* Section Roadmap 8 Fase */}
-        <div id="roadmap">
-          <Roadmap />
-        </div>
-
-        {/* Section Game Edukasi Interaktif */}
-        <div id="game">
-          <Games />
-        </div>
-
-        {/* Section Playlist Audio Pendukung */}
-        <div id="playlist">
-          <Playlist />
-        </div>
-
-        {/* Section Suasana Belajar / Mode Fokus */}
-        <div id="fokus">
-          <FocusSection 
+        {isInsideApp ? (
+          <Classroom 
+            onBackToLanding={() => setIsInsideApp(false)} 
             isFocusModeActive={isFocusModeActive} 
-            onToggleFocusMode={setIsFocusModeActive} 
           />
-        </div>
+        ) : (
+          <>
+            {/* Home/Hero Section */}
+            <div id="home">
+              <Hero 
+                onStartClick={() => handleNavClick('roadmap')} 
+                onExplorationClick={() => handleNavClick('keunggulan')} 
+                onEnterApp={() => setIsInsideApp(true)}
+              />
+            </div>
 
-        {/* Section Onboarding / Peta Rencana Belajar personal */}
-        <div id="onboarding">
-          <CTASection />
-        </div>
+            {/* Section Features / Keunggulan Utama */}
+            <div id="keunggulan">
+              <Features />
+            </div>
+
+            {/* Section Roadmap 8 Fase */}
+            <div id="roadmap">
+              <Roadmap />
+            </div>
+
+            {/* Section Game Edukasi Interaktif */}
+            <div id="game">
+              <Games />
+            </div>
+
+            {/* Section Playlist Audio Pendukung */}
+            <div id="playlist">
+              <Playlist />
+            </div>
+
+            {/* Section Suasana Belajar / Mode Fokus */}
+            <div id="fokus">
+              <FocusSection 
+                isFocusModeActive={isFocusModeActive} 
+                onToggleFocusMode={setIsFocusModeActive} 
+              />
+            </div>
+
+            {/* Section Onboarding / Peta Rencana Belajar personal */}
+            <div id="onboarding">
+              <CTASection />
+            </div>
+          </>
+        )}
 
       </div>
     </div>
