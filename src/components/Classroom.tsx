@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Volume2, BookOpen, Award, Smile, Gamepad2, Check, ChevronRight, 
   Sparkles, RotateCcw, ArrowLeft, Clock, Brain, AlertTriangle, ShieldCheck, Trophy, Globe, Flame, Lock, HelpCircle,
-  Search, Languages, LayoutDashboard, Plus, Minus
+  Search, Languages, LayoutDashboard, Plus, Minus, Layers, Moon
 } from 'lucide-react';
 import { UNGKAPAN_KELAS_SALAM, VOCABULARY_DATA, PARTICLE_QUESTIONS, SENTENCE_PUZZLES } from '../data';
 import { ALL_LESSONS } from '../data/lessonsData';
@@ -17,14 +17,17 @@ import { lessons } from '../data/curriculum';
 import KanaTrainer from './KanaTrainer';
 import KanjiLibrary from './KanjiLibrary';
 import DailyPlanner from './DailyPlanner';
+import DigitalFlashcards from './DigitalFlashcards';
+import { recordSrsMistake, recordSrsSuccess, getDueSrsItems, SrsItem } from '../utils/srs';
 
 interface ClassroomProps {
   onBackToLanding: () => void;
   isFocusModeActive: boolean;
+  onToggleFocusMode: (val: boolean) => void;
 }
 
-export default function Classroom({ onBackToLanding, isFocusModeActive }: ClassroomProps) {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'kanatrainer' | 'kana' | 'kanji' | 'materi' | 'vocab' | 'quiz' | 'game' | 'tips'>('dashboard');
+export default function Classroom({ onBackToLanding, isFocusModeActive, onToggleFocusMode }: ClassroomProps) {
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'kanatrainer' | 'kana' | 'kanji' | 'materi' | 'vocab' | 'quiz' | 'game' | 'tips' | 'flashcards'>('dashboard');
   const [kanaType, setKanaType] = useState<'hiragana' | 'katakana'>('hiragana');
   const [kanaSubTab, setKanaSubTab] = useState<'dasar' | 'varian' | 'kombinasi'>('dasar');
 
@@ -129,7 +132,7 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
   // QUIZ ENGINE PRO STATE (LEVEL SYSTEM & DIFFICULTY PROGRESSION)
   // ==========================================
   const [quizActive, setQuizActive] = useState<boolean>(false);
-  const [quizMode, setQuizMode] = useState<'standard' | 'survival'>('standard');
+  const [quizMode, setQuizMode] = useState<'standard' | 'survival' | 'srs'>('standard');
   const [quizJlptFilter, setQuizJlptFilter] = useState<'All' | 'N5' | 'N4'>('All');
   const [quizBabFilterRange, setQuizBabFilterRange] = useState<string>('All'); // 'All', '1-5', '6-10', '11-15', '16-20', '21-25'
   
@@ -141,6 +144,7 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
     lessonId: number;
     judulBab: string;
     jlpt: string;
+    srsItem?: SrsItem;
   }>>([]);
   const [quizCurrentIndex, setQuizCurrentIndex] = useState<number>(0);
   const [quizScore, setQuizScore] = useState<number>(0);
@@ -167,6 +171,55 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
 
   const startQuizEngine = (overrideJlpt?: 'All' | 'N5' | 'N4', overrideBabRange?: string) => {
     triggerTick(880);
+
+    if (quizMode === 'srs') {
+      const dueItems = getDueSrsItems();
+      if (dueItems.length === 0) {
+        triggerTick(150);
+        return;
+      }
+      
+      const srsQuestions = dueItems.map(item => {
+        let opts = item.options || [];
+        if (opts.length === 0) {
+          const correct = item.correct;
+          const fallbacks = ['a', 'i', 'u', 'e', 'o', 'ka', 'ki', 'ku', 'ke', 'ko', 'sa', 'shi', 'su', 'se', 'so', 'ta', 'chi', 'to', 'na', 'ni', 'nu', 'ne', 'no'];
+          const filtered = fallbacks.filter(f => f !== correct);
+          const shuffled = [...filtered].sort(() => 0.5 - Math.random()).slice(0, 3);
+          opts = [...shuffled, correct].sort(() => 0.5 - Math.random());
+        }
+
+        return {
+          question: `${item.question}${item.translation ? ` (${item.translation})` : ''}`,
+          options: opts,
+          answer: item.correct,
+          explanation: item.explanation || `Pecahan kuis Spaced Repetition untuk memperkuat hafalan kata "${item.question}".`,
+          lessonId: item.box, // map Box to lessonId
+          judulBab: `Leitner Box ${item.box}`,
+          jlpt: item.type === 'kana' ? 'Kana' : 'N5',
+          srsItem: item
+        };
+      });
+
+      setQuizQuestionsList(srsQuestions);
+      setQuizCurrentIndex(0);
+      setQuizScore(0);
+      setQuizStreak(0);
+      setQuizHearts(3);
+      setQuizDifficultyLevel(2);
+      
+      setQuizMaxTime(25);
+      setQuizTimeLeft(25);
+      
+      setQuizSubmittedState(false);
+      setQuizUserAnswer('');
+      setQuizFeedback(null);
+      setShowQuizSummary(false);
+      setQuizRoundHistory([]);
+      setQuizActive(true);
+      return;
+    }
+
     const allAvailable = lessons.flatMap(lesson => {
       const isN4 = lesson.id > 12;
       const jlpt = isN4 ? 'N4' : 'N5';
@@ -241,6 +294,11 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
     if (isCorrect) {
       triggerTick(880);
       setQuizFeedback('correct');
+      speakText(currentQuestion.answer);
+
+      if (currentQuestion.srsItem) {
+        recordSrsSuccess(currentQuestion.srsItem.id);
+      }
 
       const basePoints = quizDifficultyLevel * 10;
       const speedBonus = Math.floor(quizTimeLeft * 1.5) * quizDifficultyLevel;
@@ -259,6 +317,23 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
     } else {
       triggerTick(150);
       setQuizFeedback('incorrect');
+      speakText(currentQuestion.answer);
+
+      if (currentQuestion.srsItem) {
+        const s = currentQuestion.srsItem;
+        recordSrsMistake({
+          id: s.id,
+          type: s.type,
+          question: s.question,
+          correct: s.correct,
+          translation: s.translation,
+          explanation: s.explanation,
+          options: s.options,
+          scrambledWords: s.scrambledWords,
+          correctOrder: s.correctOrder
+        });
+      }
+
       setQuizStreak(0);
 
       if (quizMode === 'survival') {
@@ -299,6 +374,21 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
     ]);
 
     triggerTick(150);
+
+    if (currentQuestion.srsItem) {
+      const s = currentQuestion.srsItem;
+      recordSrsMistake({
+        id: s.id,
+        type: s.type,
+        question: s.question,
+        correct: s.correct,
+        translation: s.translation,
+        explanation: s.explanation,
+        options: s.options,
+        scrambledWords: s.scrambledWords,
+        correctOrder: s.correctOrder
+      });
+    }
 
     if (quizMode === 'survival') {
       const nextHearts = quizHearts - 1;
@@ -419,6 +509,7 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
     } catch (e) {
       // ignore
     }
+    speakText(character);
   };
 
   // Sound feedback tick
@@ -542,6 +633,13 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
       if (gameDifficulty > 1) {
         setTimeLeft(prev => Math.max(0, prev - 2));
       }
+      recordSrsMistake({
+        id: `speedrun_${currentQuestion.char}`,
+        type: 'kana',
+        question: currentQuestion.char,
+        correct: currentQuestion.correct,
+        explanation: `Pembacaan romaji yang benar untuk karakter "${currentQuestion.char}" adalah "${currentQuestion.correct}".`
+      });
       generateLevelQuestion();
     }
   };
@@ -585,19 +683,37 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
           </div>
         </div>
 
-        {/* User stats widget (streak reward motivation) */}
-        <div className="flex items-center gap-3 bg-white/3 p-3 rounded-2xl border border-white/5 self-start sm:self-center">
-          <Flame className="w-5 h-5 text-amber-500 animate-bounce" />
-          <div className="text-left">
-            <span className="text-[10px] uppercase font-semibold text-zinc-500 block">Streak Harian</span>
-            <span className="text-xs text-white font-mono font-bold">{streakCount} Hari Berturut</span>
+        {/* User stats widget & Mode Fokus button (streak reward motivation and focus control) */}
+        <div className="flex flex-wrap items-center gap-3 self-start sm:self-center">
+          <button
+            onClick={() => {
+              triggerTick(523);
+              onToggleFocusMode(!isFocusModeActive);
+            }}
+            className={`p-3 px-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wider ${
+              isFocusModeActive
+                ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.25)] font-black'
+                : 'bg-white/5 border-white/5 text-zinc-300 hover:text-white hover:bg-white/10'
+            }`}
+            title={isFocusModeActive ? 'Matikan Mode Fokus' : 'Aktifkan Mode Fokus'}
+          >
+            <Moon className={`w-4 h-4 ${isFocusModeActive ? 'text-amber-400 animate-pulse' : ''}`} />
+            <span>{isFocusModeActive ? 'Fokus Aktif' : 'Mode Fokus'}</span>
+          </button>
+
+          <div className="flex items-center gap-3 bg-white/3 p-3 rounded-2xl border border-white/5">
+            <Flame className="w-5 h-5 text-amber-500 animate-bounce" />
+            <div className="text-left">
+              <span className="text-[10px] uppercase font-semibold text-zinc-500 block">Streak Harian</span>
+              <span className="text-xs text-white font-mono font-bold">{streakCount} Hari Berturut</span>
+            </div>
           </div>
         </div>
 
       </div>
 
       {/* Classroom Segmentation Navigation Panels */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-9 gap-3 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-10 gap-3 mb-8">
         {[
           { id: 'dashboard', label: 'Dashboard Kelas Pro', icon: <LayoutDashboard className="w-4 h-4" /> },
           { id: 'kanatrainer', label: 'Kana Trainer Pro', icon: <Sparkles className="w-4 h-4 text-purple-400" /> },
@@ -605,6 +721,7 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
           { id: 'kanji', label: 'Perpustakaan Kanji', icon: <Brain className="w-4 h-4 text-sky-450 animate-pulse" /> },
           { id: 'materi', label: 'Materi Komplit & Detail', icon: <BookOpen className="w-4 h-4" /> },
           { id: 'vocab', label: 'Kamus Kosakata N5-N4', icon: <Languages className="w-4 h-4" /> },
+          { id: 'flashcards', label: 'Flashcards Cerdas', icon: <Layers className="w-4 h-4 text-amber-400" /> },
           { id: 'quiz', label: 'Quiz Engine Pro', icon: <Award className="w-4 h-4" /> },
           { id: 'game', label: 'Tantangan Game Pro', icon: <Gamepad2 className="w-4 h-4" /> },
           { id: 'tips', label: 'Panduan Guru Profesional', icon: <Smile className="w-4 h-4" /> }
@@ -1047,7 +1164,22 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
       {/* MODULE KANJI LIBRARY: BROWSE, STROKE, & INTERACTIVE QUIZ */}
       {/* ======================================================== */}
       {activeTab === 'kanji' && (
-        <div id="classroom-kanji-library-module" className="animate-fade-rise space-y-6">
+        <div id="classroom-kanji-library-module" className="animate-fade-rise space-y-4">
+          <div className="bg-amber-500/10 border border-amber-500/20 text-amber-300 rounded-2xl p-3.5 px-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Layers className="w-5 h-5 text-amber-400 shrink-0 animate-pulse" />
+              <div className="text-left">
+                <span className="text-xs font-bold block">💡 Mode Belajar Cepat (Flashcards)</span>
+                <span className="text-[10px] text-zinc-400 font-light block">Sekarang kamu bisa berlatih menghafal ⛩️ Kanji & 📖 Kosakata dengan animasi flip 3D berjadwal!</span>
+              </div>
+            </div>
+            <button
+              onClick={() => { triggerTick(523); setActiveTab('flashcards'); }}
+              className="bg-amber-500 hover:bg-amber-400 text-slate-950 text-[11px] font-black uppercase tracking-wider px-4 py-2 rounded-xl transition-all cursor-pointer hover:scale-102 shrink-0 shadow-lg"
+            >
+              Buka Flashcards
+            </button>
+          </div>
           <div className="liquid-glass rounded-3xl p-6 sm:p-10 border border-white/5">
             <KanjiLibrary 
               onTriggerSound={(freq) => { triggerTick(freq); }}
@@ -1113,36 +1245,105 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
             {/* Render Selected Dynamic Character Grid */}
             <div className="bg-slate-950/20 p-4 sm:p-6 rounded-2xl border border-white/5 text-center">
               
-              {/* Conditional columns count depending on subtab */}
-              <div className={`grid gap-3 grid-cols-5 ${kanaSubTab === 'kombinasi' ? 'sm:grid-cols-6' : 'sm:grid-cols-10'} max-w-5xl mx-auto w-full`}>
-                {KANA_DATA[kanaType][kanaSubTab].map((item, index) => {
-                  if (item.char === '—' || item.rom === '') {
-                    return (
-                      <div 
-                        key={index} 
-                        className="h-16 flex items-center justify-center text-zinc-800 font-mono text-xs select-none bg-slate-950/40 rounded-xl"
-                      >
-                        —
-                      </div>
-                    );
-                  }
+              {kanaSubTab === 'kombinasi' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-6xl mx-auto w-full text-left">
+                  {(() => {
+                    const items = KANA_DATA[kanaType].kombinasi;
+                    const labels = kanaType === 'hiragana' ? [
+                      { base: 'き (ki)', family: 'Kya • Kyu • Kyo' },
+                      { base: 'し (shi)', family: 'Sha • Shu • Sho' },
+                      { base: 'ち (chi)', family: 'Cha • Chu • Cho' },
+                      { base: 'に (ni)', family: 'Nya • Nyu • Nyo' },
+                      { base: 'ひ (hi)', family: 'Hya • Hyu • Hyo' },
+                      { base: 'み (mi)', family: 'Mya • Myu • Myo' },
+                      { base: 'り (ri)', family: 'Rya • Ryu • Ryo' },
+                      { base: 'ぎ (gi)', family: 'Gya • Gyu • Gyo' },
+                      { base: 'じ (ji)', family: 'Ja • Ju • Jo' },
+                      { base: 'び (bi)', family: 'Bya • Byu • Byo' },
+                      { base: 'ぴ (pi)', family: 'Pya • Pyu • Pyo' }
+                    ] : [
+                      { base: 'キ (ki)', family: 'Kya • Kyu • Kyo' },
+                      { base: 'シ (shi)', family: 'Sha • Shu • Sho' },
+                      { base: 'チ (chi)', family: 'Cha • Chu • Cho' },
+                      { base: 'ニ (ni)', family: 'Nya • Nyu • Nyo' },
+                      { base: 'ヒ (hi)', family: 'Hya • Hyu • Hyo' },
+                      { base: 'ミ (mi)', family: 'Mya • Myu • Myo' },
+                      { base: 'リ (ri)', family: 'Rya • Ryu • Ryo' },
+                      { base: 'ギ (gi)', family: 'Gya • Gyu • Gyo' },
+                      { base: 'ジ (ji)', family: 'Ja • Ju • Jo' },
+                      { base: 'ビ (bi)', family: 'Bya • Byu • Byo' },
+                      { base: 'ピ (pi)', family: 'Pya • Pyu • Pyo' }
+                    ];
 
-                  return (
-                    <button
-                      key={index}
-                      onClick={() => playKanaSound(item.char, item.rom)}
-                      className="h-20 sm:h-22 bg-white/3 hover:bg-white/10 active:bg-white/20 hover:scale-[1.04] rounded-2xl border border-white/10 flex flex-col items-center justify-center p-2 cursor-pointer transition-all active:scale-95 group font-display select-none"
-                    >
-                      <span className="text-3xl sm:text-4xl text-white font-normal leading-none mb-1 group-hover:text-yellow-350 transition-colors">
-                        {item.char}
-                      </span>
-                      <span className="text-[10px] font-sans font-mono tracking-widest text-zinc-500 uppercase group-hover:text-zinc-200 transition-colors">
-                        {item.rom}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+                    const chunks = [];
+                    for (let i = 0; i < items.length; i += 3) {
+                      chunks.push({
+                        label: labels[Math.floor(i / 3)],
+                        cards: items.slice(i, i + 3)
+                      });
+                    }
+
+                    return chunks.map((chunk, chunkIdx) => (
+                      <div key={chunkIdx} className="bg-white/2 border border-white/5 rounded-2xl p-4 flex flex-col gap-2.5 hover:border-indigo-500/25 hover:bg-white/4 transition-all">
+                        <div className="flex justify-between items-center px-1 border-b border-white/5 pb-2">
+                          <span className="text-xs font-bold text-indigo-400 font-mono">
+                            Asal: {chunk.label?.base}
+                          </span>
+                          <span className="text-[10px] uppercase font-bold tracking-wider text-zinc-500">
+                            {chunk.label?.family}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {chunk.cards.map((item, index) => (
+                            <button
+                              key={index}
+                              onClick={() => playKanaSound(item.char, item.rom)}
+                              className="h-18 bg-white/3 hover:bg-white/10 active:bg-white/20 hover:scale-[1.03] rounded-xl border border-white/10 flex flex-col items-center justify-center p-1.5 cursor-pointer transition-all active:scale-95 group font-display select-none"
+                            >
+                              <span className="text-2xl text-white font-normal leading-none mb-1 group-hover:text-yellow-300 transition-colors">
+                                {item.char}
+                              </span>
+                              <span className="text-[9px] font-sans font-mono tracking-wider text-zinc-500 uppercase group-hover:text-zinc-200 transition-colors">
+                                {item.rom}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              ) : (
+                <div className="grid gap-3 grid-cols-5 sm:grid-cols-10 max-w-5xl mx-auto w-full">
+                  {KANA_DATA[kanaType][kanaSubTab].map((item, index) => {
+                    if (item.char === '—' || item.rom === '') {
+                      return (
+                        <div 
+                          key={index} 
+                          className="h-16 flex items-center justify-center text-zinc-800 font-mono text-xs select-none bg-slate-950/40 rounded-xl"
+                        >
+                          —
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <button
+                        key={index}
+                        onClick={() => playKanaSound(item.char, item.rom)}
+                        className="h-20 sm:h-22 bg-white/3 hover:bg-white/10 active:bg-white/20 hover:scale-[1.04] rounded-2xl border border-white/10 flex flex-col items-center justify-center p-2 cursor-pointer transition-all active:scale-95 group font-display select-none"
+                      >
+                        <span className="text-3xl sm:text-4xl text-white font-normal leading-none mb-1 group-hover:text-yellow-350 transition-colors">
+                          {item.char}
+                        </span>
+                        <span className="text-[10px] font-sans font-mono tracking-widest text-zinc-500 uppercase group-hover:text-zinc-200 transition-colors">
+                          {item.rom}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
 
               {/* Extra Pronunciation Tip based on Chosen Subtab */}
               <div className="mt-8 pt-6 border-t border-white/5 text-left text-xs text-zinc-400 font-light space-y-2 max-w-2xl mx-auto">
@@ -1284,15 +1485,22 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
                       
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[50vh] overflow-y-auto pr-1">
                         {currentLessonData.vocabulary.map((v, i) => (
-                          <div key={i} className="bg-white/2 border border-white/5 rounded-2xl p-4 flex justify-between items-center group">
+                          <div 
+                            key={i} 
+                            onClick={() => speakText(v.jp)} 
+                            className="bg-white/2 hover:bg-white/5 hover:border-indigo-500/30 border border-white/5 rounded-2xl p-4 flex justify-between items-center group cursor-pointer transition-all active:scale-[0.99]"
+                          >
                             <div>
-                              <h5 className="text-sm font-semibold text-white group-hover:text-yellow-300 transition-colors">{v.jp}</h5>
+                              <h5 className="text-sm font-semibold text-white group-hover:text-yellow-350 transition-colors">{v.jp}</h5>
                               <p className="text-xs text-zinc-305 font-medium">{v.rom} • <span className="text-[10px] text-zinc-500">{v.type}</span></p>
                               <p className="text-xs text-zinc-400 mt-1">{v.translation}</p>
                               <p className="text-[10px] text-zinc-500 italic mt-0.5">{v.desc}</p>
                             </div>
                             <button 
-                              onClick={() => speakText(v.jp)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                speakText(v.jp);
+                              }}
                               title="Lafalkan Suara Asli (TTS)"
                               className="p-2 h-8 w-8 rounded-full border border-indigo-500/25 bg-indigo-550/10 hover:bg-indigo-500 hover:text-white text-indigo-300 active:scale-95 transition-all flex items-center justify-center cursor-pointer shrink-0 animate-pulse"
                             >
@@ -1335,18 +1543,24 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
                             </p>
                             
                              {/* Standard Usage Examples */}
-                             <div className="bg-slate-950/40 p-4 rounded-xl border border-white/5 space-y-1 text-left relative group">
+                             <div 
+                               onClick={() => speakText(gp.exJp)}
+                               className="bg-slate-950/40 p-4 rounded-xl border border-white/5 hover:border-indigo-500/35 hover:bg-slate-950/60 active:scale-[0.99] transition-all text-left relative group cursor-pointer"
+                             >
                                <div className="flex justify-between items-start">
-                                 <span className="text-[10px] uppercase font-bold tracking-widest text-zinc-500 block">Kalimat Contoh:</span>
+                                 <span className="text-[10px] uppercase font-bold tracking-widest text-zinc-500 block">Kalimat Contoh: (Klik untuk Suara)</span>
                                  <button
                                    type="button"
-                                   onClick={() => speakText(gp.exJp)}
+                                   onClick={(e) => {
+                                     e.stopPropagation();
+                                     speakText(gp.exJp);
+                                   }}
                                    className="px-2.5 py-1 bg-indigo-500/10 hover:bg-indigo-600 border border-indigo-500/20 rounded-lg text-indigo-300 hover:text-white text-[10px] uppercase font-bold transition-all cursor-pointer flex items-center gap-1.5"
                                  >
                                    <Volume2 className="w-3 h-3 animate-pulse" /> Lafalkan (TTS)
                                  </button>
                                </div>
-                               <span className="text-base text-white font-mono block select-all mt-1">{gp.exJp}</span>
+                               <span className="text-base text-white font-mono block select-all mt-1 group-hover:text-yellow-350 transition-colors">{gp.exJp}</span>
                                <p className="text-xs text-zinc-400 font-mono italic">({gp.exRom})</p>
                                <span className="text-xs text-zinc-300 block mt-1">Artinya: "{gp.exId}"</span>
                              </div>
@@ -1434,16 +1648,18 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
                         {currentLessonData.dialogue.map((dlg, idx) => (
                           <div 
                             key={idx} 
-                            className={`p-4 rounded-2xl border flex flex-col ${
+                            onClick={() => speakText(dlg.textJp)}
+                            className={`p-4 rounded-2xl border flex flex-col cursor-pointer transition-all hover:bg-white/10 active:scale-[0.995] ${
                               dlg.speaker === 'ルカ' || dlg.speaker === '実üş生' || dlg.speaker === '実習生'
-                                ? 'bg-white/5 border-white/10 ml-6 border-l-4 border-l-yellow-405'
-                                : 'bg-slate-950/20 border-white/5 mr-6 border-l-4 border-l-zinc-500'
+                                ? 'bg-white/5 border-white/10 hover:border-yellow-400/40 ml-6 border-l-4 border-l-yellow-405'
+                                : 'bg-slate-950/20 border-white/5 hover:border-indigo-400/30 mr-6 border-l-4 border-l-zinc-500'
                             }`}
+                            title="Klik untuk melafalkan percakapan"
                           >
                             <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1 block">
-                              {dlg.speaker}
+                              {dlg.speaker} {dlg.speaker === 'ルカ' ? '🗣️' : '👤'} (Klik untuk Suara)
                             </span>
-                            <span className="text-base text-white font-display select-all leading-relaxed block">
+                            <span className="text-base text-white font-display select-all leading-relaxed block hover:text-yellow-350 transition-colors">
                               {dlg.textJp}
                             </span>
                             <span className="text-xs text-zinc-400 italic block mt-0.5">
@@ -1460,7 +1676,7 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
                         onClick={() => {
                           const firstLine = currentLessonData.dialogue[0];
                           if (firstLine) {
-                            playKanaSound(firstLine.textJp, firstLine.textRom);
+                            speakText(firstLine.textJp);
                           }
                         }}
                         className="liquid-glass text-xs font-bold uppercase px-6 py-3.5 rounded-full text-white hover:scale-105 active:scale-95 transition-all text-center mx-auto flex items-center justify-center gap-2 cursor-pointer mt-6"
@@ -1595,33 +1811,50 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
                         </div>
 
                         <div className="bg-white/3 border border-white/5 rounded-3xl p-6 space-y-4">
-                          <p className="text-sm sm:text-base font-semibold text-white">
-                            {lessonQuiz.question}
+                          <p 
+                            onClick={() => speakText(lessonQuiz.question)}
+                            className="text-sm sm:text-base font-semibold text-white hover:text-indigo-300 transition-all cursor-pointer flex items-center gap-1.5"
+                            title="Klik untuk melafalkan soal"
+                          >
+                            <span>{lessonQuiz.question}</span>
+                            <Volume2 className="w-4 h-4 text-zinc-500 hover:text-white shrink-0 inline animate-pulse" />
                           </p>
 
                           <div className="flex flex-col gap-2">
                             {lessonQuiz.options.map((option, idx) => (
-                              <button
-                                key={idx}
-                                onClick={() => {
-                                  if (!quizSubmitted) {
-                                    triggerTick(440);
-                                    setQuizSelectedAnswer(option);
-                                  }
-                                }}
-                                disabled={quizSubmitted}
-                                className={`w-full text-left p-4 rounded-2xl border text-xs sm:text-sm transition-all ${
-                                  quizSelectedAnswer === option
-                                    ? quizSubmitted
-                                      ? isQuizCorrect
-                                        ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20 font-semibold'
-                                        : 'bg-rose-500/10 text-rose-450 border-rose-500/20 font-semibold'
-                                      : 'bg-white text-slate-950 font-bold border-white scale-[1.01]'
-                                    : 'bg-white/3 hover:bg-white/6 border-white/5 text-zinc-300'
-                                }`}
-                              >
-                                {option}
-                              </button>
+                              <div key={idx} className="relative flex items-center group w-full">
+                                <button
+                                  onClick={() => {
+                                    if (!quizSubmitted) {
+                                      triggerTick(440);
+                                      setQuizSelectedAnswer(option);
+                                    }
+                                  }}
+                                  disabled={quizSubmitted}
+                                  className={`w-full text-left p-4 pr-12 rounded-2xl border text-xs sm:text-sm transition-all ${
+                                    quizSelectedAnswer === option
+                                      ? quizSubmitted
+                                        ? isQuizCorrect
+                                          ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20 font-semibold'
+                                          : 'bg-rose-500/10 text-rose-450 border-rose-500/20 font-semibold'
+                                        : 'bg-white text-slate-950 font-bold border-white scale-[1.01]'
+                                      : 'bg-white/3 hover:bg-white/6 border-white/5 text-zinc-300'
+                                  }`}
+                                >
+                                  {option}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    speakText(option);
+                                  }}
+                                  className="absolute right-3.5 p-1.5 rounded-full hover:bg-white/10 text-zinc-500 hover:text-white transition-all shrink-0 cursor-pointer"
+                                  title="Melafalkan Pilihan (TTS)"
+                                >
+                                  <Volume2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             ))}
                           </div>
 
@@ -1634,7 +1867,17 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
                                   setQuizSubmitted(true);
                                   if (isCorrect) {
                                     addXP(15);
+                                  } else {
+                                    recordSrsMistake({
+                                      id: `lesson_${selectedLesson}_vocab_quiz`,
+                                      type: 'vocab',
+                                      question: lessonQuiz.question,
+                                      correct: lessonQuiz.answer,
+                                      explanation: lessonQuiz.explanation,
+                                      options: lessonQuiz.options
+                                    });
                                   }
+                                  speakText(lessonQuiz.answer);
                                 } else {
                                   triggerTick(220);
                                 }
@@ -1952,12 +2195,22 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
                 </p>
               </div>
 
-              {/* Status statistics */}
-              <div className="bg-white/5 border border-white/5 rounded-2xl px-4 py-2.5 flex items-center gap-3">
-                <Brain className="w-5 h-5 text-indigo-400" />
-                <div>
-                  <span className="text-[9px] uppercase font-bold tracking-wider text-zinc-500 block">Total Database</span>
-                  <span className="text-xs font-mono font-bold text-white">{filteredVocabList.length} dari {VOCABULARY_DATABASE.length} Kosakata</span>
+              {/* Status statistics & Flashcards CTA */}
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  onClick={() => { triggerTick(523.25); setActiveTab('flashcards'); }}
+                  className="bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/20 rounded-2xl px-4 py-2.5 flex items-center gap-2 text-xs font-bold uppercase tracking-wider cursor-pointer transition-all hover:scale-103 active:scale-95 shadow-md"
+                >
+                  <Layers className="w-4 h-4 text-amber-400" />
+                  Latih Buku Flashcard
+                </button>
+
+                <div className="bg-white/5 border border-white/5 rounded-2xl px-4 py-2.5 flex items-center gap-3">
+                  <Brain className="w-5 h-5 text-indigo-400" />
+                  <div>
+                    <span className="text-[9px] uppercase font-bold tracking-wider text-zinc-500 block">Total Database</span>
+                    <span className="text-xs font-mono font-bold text-white">{filteredVocabList.length} dari {VOCABULARY_DATABASE.length} Kosakata</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2058,7 +2311,11 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[60vh] overflow-y-auto pr-1">
                 {filteredVocabList.map((word) => (
-                  <div key={word.id} className="bg-white/3 border border-white/5 rounded-2xl p-4 flex flex-col justify-between hover:border-white/15 hover:bg-white/5 transition-all group relative overflow-hidden">
+                  <div 
+                    key={word.id} 
+                    onClick={() => speakText(word.jp)}
+                    className="bg-white/3 hover:bg-white/5 hover:border-indigo-500/30 cursor-pointer active:scale-[0.99] border border-white/5 rounded-2xl p-4 flex flex-col justify-between transition-all group relative overflow-hidden"
+                  >
                     {/* Background faint color for JLPT types */}
                     <div className="absolute top-0 right-0 h-16 w-16 bg-gradient-to-bl from-indigo-500/5 to-transparent pointer-events-none" />
                     
@@ -2083,7 +2340,10 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
                         
                         {/* Audio speaker trigger */}
                         <button
-                          onClick={() => speakText(word.jp)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            speakText(word.jp);
+                          }}
                           className="p-1 px-1.5 h-7 w-7 rounded-lg border border-indigo-500/25 bg-indigo-550/10 hover:bg-indigo-500 hover:text-white text-indigo-300 active:scale-90 transition-all flex items-center justify-center cursor-pointer shrink-0 animate-pulse"
                           title="Lafalkan Suara Asli (TTS)"
                         >
@@ -2202,6 +2462,28 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
                           Ujian tak berujung dengan 3 Nyawa (Hearts). Level permainan akan naik dan waktu countdown menyusut setiap 3 jawaban benar berturut-turut!
                         </p>
                       </button>
+
+                      <button
+                        onClick={() => { triggerTick(440); setQuizMode('srs'); }}
+                        className={`p-4 rounded-2xl border text-left cursor-pointer transition-all ${
+                          quizMode === 'srs'
+                            ? 'bg-amber-500/10 border-amber-500/30 text-amber-300 font-bold'
+                            : 'bg-white/3 border-white/5 text-zinc-400 hover:text-white hover:bg-white/5'
+                        }`}
+                      >
+                        <div className="flex justify-between items-center mb-1">
+                          <div className="flex items-center gap-1.5">
+                            <Brain className="w-4 h-4 text-amber-400 shrink-0" />
+                            <span className="text-sm font-semibold">Review Cerdas SRS</span>
+                          </div>
+                          <span className={`text-[9px] px-2 py-0.5 rounded-md font-extrabold uppercase ${
+                            quizMode === 'srs' ? 'bg-amber-500 text-slate-950 font-bold animate-pulse' : 'bg-amber-500/20 text-amber-400'
+                          }`}>Targeted</span>
+                        </div>
+                        <p className="text-[11px] font-light leading-relaxed opacity-80">
+                          Review cerdas berjadwal (Leitner System) otomatis menarik semua sisa kesalahan-kesalahan Anda di mini games sebelumnya untuk pengulangan adaptif.
+                        </p>
+                      </button>
                     </div>
                   </div>
 
@@ -2270,10 +2552,29 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
                 {/* Big Action CTA */}
                 <div className="text-center pt-4">
                   <button
-                    onClick={startQuizEngine}
-                    className="bg-indigo-600 border border-indigo-500/50 hover:bg-indigo-500 text-white px-10 py-4 rounded-full text-sm font-semibold uppercase tracking-wider shadow-xl hover:scale-[1.03] active:scale-95 transition-all cursor-pointer inline-flex items-center gap-2"
+                    onClick={() => {
+                      if (quizMode === 'srs' && getDueSrsItems().length === 0) {
+                        triggerTick(150);
+                        return;
+                      }
+                      startQuizEngine();
+                    }}
+                    disabled={quizMode === 'srs' && getDueSrsItems().length === 0}
+                    className={`px-10 py-4 rounded-full text-sm font-semibold uppercase tracking-wider shadow-xl hover:scale-[1.03] active:scale-95 transition-all cursor-pointer inline-flex items-center gap-2 ${
+                      quizMode === 'srs' && getDueSrsItems().length === 0
+                        ? 'bg-zinc-850 border border-zinc-750 text-zinc-500 opacity-50 cursor-not-allowed'
+                        : quizMode === 'srs'
+                        ? 'bg-amber-600 border border-amber-500/50 hover:bg-amber-500 text-slate-950 font-black'
+                        : 'bg-indigo-600 border border-indigo-500/50 hover:bg-indigo-500 text-white'
+                    }`}
                   >
-                    <Award className="w-5 h-5 animate-spin-slow" /> Mulai Sesi Kuis Interaktif
+                    <Award className="w-5 h-5 animate-spin-slow" />
+                    {quizMode === 'srs'
+                      ? getDueSrsItems().length === 0
+                        ? 'Belum Ada Kata Salah (Review Bersih!)'
+                        : `Mulai Review Kilat (${getDueSrsItems().length} Kata Salah)`
+                      : 'Mulai Sesi Kuis Interaktif'
+                    }
                   </button>
                 </div>
               </div>
@@ -2299,7 +2600,11 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
                     <div className="text-left px-1">
                       <span className="text-[9px] uppercase font-mono text-zinc-500 tracking-wider block">Pertanyaan</span>
                       <span className="text-sm font-bold text-white font-mono">
-                        {quizMode === 'standard' ? `${quizCurrentIndex + 1} / ${quizQuestionsList.length}` : `Ke-${quizCurrentIndex + 1} (Endless)`}
+                        {quizMode === 'standard' 
+                          ? `${quizCurrentIndex + 1} / ${quizQuestionsList.length}` 
+                          : quizMode === 'srs'
+                          ? `Review: ${quizCurrentIndex + 1} / ${quizQuestionsList.length}`
+                          : `Ke-${quizCurrentIndex + 1} (Endless)`}
                       </span>
                     </div>
 
@@ -2362,9 +2667,16 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
                     <div className="space-y-2 text-center pt-2 md:pt-4">
                       <span className="text-[10px] text-indigo-400 uppercase tracking-widest font-bold block sm:hidden">Bab {currentItem.lessonId} : {currentItem.judulBab}</span>
                       <span className="text-[10px] text-indigo-400 uppercase tracking-widest font-bold hidden sm:block">SOAL KUIS EVALUASI</span>
-                      <h3 className="text-lg sm:text-xl font-medium text-white leading-relaxed max-w-lg mx-auto">
-                        {currentItem.question}
-                      </h3>
+                      <div className="flex flex-col items-center gap-2">
+                        <h3 
+                          onClick={() => speakText(currentItem.question)}
+                          className="text-lg sm:text-xl font-medium text-white hover:text-indigo-300 transition-colors leading-relaxed max-w-lg mx-auto cursor-pointer flex items-center justify-center gap-1.5"
+                          title="Klik untuk melafalkan soal"
+                        >
+                          <span>{currentItem.question}</span>
+                          <Volume2 className="w-4 h-4 text-zinc-500 hover:text-white shrink-0 animate-pulse" />
+                        </h3>
+                      </div>
                     </div>
 
                     {/* Multiple choices */}
@@ -2387,19 +2699,31 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
                         }
 
                         return (
-                          <button
-                            key={idx}
-                            disabled={quizSubmittedState}
-                            onClick={() => handleQuizAnswer(option)}
-                            className={`p-4 rounded-2xl border text-xs sm:text-sm cursor-pointer transition-all ${optionStyle}`}
-                          >
-                            <div className="flex gap-2.5 items-start">
-                              <span className="bg-white/10 shrink-0 font-mono text-[10px] text-zinc-400 px-2 py-0.5 rounded-md">
-                                {String.fromCharCode(65 + idx)}
-                              </span>
-                              <span className="leading-snug">{option}</span>
-                            </div>
-                          </button>
+                          <div key={idx} className="relative flex items-center group w-full">
+                            <button
+                              disabled={quizSubmittedState}
+                              onClick={() => handleQuizAnswer(option)}
+                              className={`w-full p-4 pr-12 rounded-2xl border text-xs sm:text-sm cursor-pointer transition-all ${optionStyle}`}
+                            >
+                              <div className="flex gap-2.5 items-start">
+                                <span className="bg-white/10 shrink-0 font-mono text-[10px] text-zinc-400 px-2 py-0.5 rounded-md">
+                                  {String.fromCharCode(65 + idx)}
+                                </span>
+                                <span className="leading-snug">{option}</span>
+                              </div>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                speakText(option);
+                              }}
+                              className="absolute right-3.5 p-1.5 rounded-full hover:bg-white/10 text-zinc-500 hover:text-white transition-all shrink-0 cursor-pointer"
+                              title="Melafalkan Pilihan (TTS)"
+                            >
+                              <Volume2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         );
                       })}
                     </div>
@@ -2564,6 +2888,18 @@ export default function Classroom({ onBackToLanding, isFocusModeActive }: Classr
 
           </div>
         </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODULE: DIGITAL FLASHCARDS WITH FLIP ANIMATIONS */}
+      {/* ======================================================== */}
+      {activeTab === 'flashcards' && (
+        <DigitalFlashcards 
+          onTriggerSound={triggerTick} 
+          onAddXP={addXP} 
+          isFocusModeActive={isFocusModeActive}
+          onToggleFocusMode={onToggleFocusMode}
+        />
       )}
 
       {/* ======================================================== */}

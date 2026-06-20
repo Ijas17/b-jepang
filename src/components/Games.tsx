@@ -5,10 +5,89 @@
 
 import React, { useState, useEffect } from 'react';
 import { PARTICLE_QUESTIONS, SENTENCE_PUZZLES } from '../data';
-import { Gamepad2, Volume2, Sparkles, CheckCircle, AlertTriangle, RotateCcw, ArrowRight, Zap, HelpCircle } from 'lucide-react';
+import { Gamepad2, Volume2, Sparkles, CheckCircle, AlertTriangle, RotateCcw, ArrowRight, Zap, HelpCircle, GraduationCap } from 'lucide-react';
+import { recordSrsMistake, recordSrsSuccess, getDueSrsItems, resetSrsDatabase, SrsItem } from '../utils/srs';
 
 export default function Games() {
-  const [activeGame, setActiveGame] = useState<'karuta' | 'memory' | 'particle' | 'sentence'>('karuta');
+  const [activeGame, setActiveGame] = useState<'karuta' | 'memory' | 'particle' | 'sentence' | 'srs_quiz'>('karuta');
+
+  // ==========================================
+  // GAME 5: SPACED REPETITION TARGETED QUIZ
+  // ==========================================
+  const [srsPool, setSrsPool] = useState<SrsItem[]>([]);
+  const [srsIndex, setSrsIndex] = useState(0);
+  const [srsSelectedOpt, setSrsSelectedOpt] = useState<string>('');
+  const [srsSubmitted, setSrsSubmitted] = useState(false);
+  const [srsResult, setSrsResult] = useState<'correct' | 'wrong' | null>(null);
+  const [srsHistoryVersion, setSrsHistoryVersion] = useState(0);
+  const [srsOptions, setSrsOptions] = useState<string[]>([]);
+
+  const refreshSrsQuiz = () => {
+    const due = getDueSrsItems();
+    setSrsPool(due);
+    setSrsIndex(0);
+    setSrsSelectedOpt('');
+    setSrsSubmitted(false);
+    setSrsResult(null);
+  };
+
+  useEffect(() => {
+    if (activeGame === 'srs_quiz') {
+      refreshSrsQuiz();
+    }
+  }, [activeGame, srsHistoryVersion]);
+
+  useEffect(() => {
+    if (srsPool.length > 0 && srsIndex < srsPool.length) {
+      const item = srsPool[srsIndex];
+      if (item.options && item.options.length > 0) {
+        setSrsOptions(item.options);
+      } else {
+        const correct = item.correct;
+        const fallbacks = ['a', 'i', 'u', 'e', 'o', 'ka', 'ki', 'ku', 'ke', 'ko', 'sa', 'shi', 'su', 'se', 'so', 'ta', 'chi', 'to', 'na', 'ni', 'nu', 'ne', 'no'];
+        const filtered = fallbacks.filter(f => f !== correct);
+        const shuffled = [...filtered].sort(() => 0.5 - Math.random()).slice(0, 3);
+        setSrsOptions([...shuffled, correct].sort(() => 0.5 - Math.random()));
+      }
+    }
+  }, [srsPool, srsIndex]);
+
+  const handleSrsSubmit = () => {
+    const item = srsPool[srsIndex];
+    const isCorrect = srsSelectedOpt === item.correct;
+    
+    setSrsSubmitted(true);
+    setSrsResult(isCorrect ? 'correct' : 'wrong');
+    playBeep(isCorrect ? 880 : 180, 0.15);
+    speakText(item.question);
+
+    if (isCorrect) {
+      recordSrsSuccess(item.id);
+    } else {
+      recordSrsMistake({
+        id: item.id,
+        type: item.type,
+        question: item.question,
+        correct: item.correct,
+        translation: item.translation,
+        explanation: item.explanation,
+        options: item.options,
+        scrambledWords: item.scrambledWords,
+        correctOrder: item.correctOrder
+      });
+    }
+  };
+
+  const nextSrsQuestion = () => {
+    if (srsIndex + 1 < srsPool.length) {
+      setSrsIndex(prev => prev + 1);
+      setSrsSelectedOpt('');
+      setSrsSubmitted(false);
+      setSrsResult(null);
+    } else {
+      setSrsHistoryVersion(prev => prev + 1);
+    }
+  };
 
   // ==========================================
   // GAME 1: KARUTA KANA STATE & LOGIC
@@ -49,6 +128,12 @@ export default function Games() {
       setTimeout(() => initKaruta(), 1200);
     } else {
       setKarutaFeedback(`Kurang tepat, itu dibaca "${chosen}". Coba lagi.`);
+      recordSrsMistake({
+        id: `kana_${karutaTarget.kana}`,
+        type: 'kana',
+        question: karutaTarget.kana,
+        correct: karutaTarget.romaji,
+      });
     }
   };
 
@@ -87,6 +172,9 @@ export default function Games() {
     const updated = [...memoryCards];
     updated[index].flipped = true;
     setMemoryCards(updated);
+    
+    // Voice the kana character on click
+    speakText(memoryCards[index].kana);
 
     const newSelected = [...selectedCards, index];
     setSelectedCards(newSelected);
@@ -120,6 +208,21 @@ export default function Games() {
           setMemoryCards(resetList);
           setSelectedCards([]);
         }, 1200);
+
+        // Record mistake for both mismatched items as a kana pair
+        try {
+          const kanaCard = first.kana.includes('(') ? first : second;
+          const cleanKana = kanaCard.kana.split(' ')[0].split('(')[0].trim();
+          const romajiText = first.kana.includes('(') ? second.kana : first.kana;
+          recordSrsMistake({
+            id: `kana_${cleanKana}`,
+            type: 'kana',
+            question: cleanKana,
+            correct: romajiText,
+          });
+        } catch (e) {
+          // ignore
+        }
       }
     }
   };
@@ -140,6 +243,16 @@ export default function Games() {
     setShowParticleExplain(true);
     if (ans === currentParticleQ.correctAnswer) {
       setParticleScore(prev => prev + 25);
+    } else {
+      recordSrsMistake({
+        id: `particle_${particleIndex}`,
+        type: 'particle',
+        question: currentParticleQ.sentence,
+        correct: currentParticleQ.correctAnswer,
+        translation: currentParticleQ.translation,
+        explanation: currentParticleQ.explanation,
+        options: currentParticleQ.options
+      });
     }
   };
 
@@ -184,6 +297,35 @@ export default function Games() {
   const checkSentenceResult = () => {
     const isCorrect = selectedWords.join(' ') === currentSentence.correctOrder.join(' ');
     setSentenceStatus(isCorrect ? 'correct' : 'wrong');
+    speakText(selectedWords.join(''));
+    if (!isCorrect) {
+      recordSrsMistake({
+        id: `sentence_${sentenceIndex}`,
+        type: 'sentence',
+        question: currentSentence.meaning,
+        correct: currentSentence.correctOrder.join(' '),
+        scrambledWords: currentSentence.scrambledWords,
+        correctOrder: currentSentence.correctOrder,
+        translation: currentSentence.meaning,
+        explanation: currentSentence.hintJa
+      });
+    }
+  };
+
+  const speakText = (text: string) => {
+    try {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        // Clean text of parenthesis e.g. "す (su)" -> "す"
+        let cleanText = text.split(' ')[0].split('(')[0].trim();
+        const utterance = new SpeechSynthesisUtterance(cleanText);
+        utterance.lang = 'ja-JP';
+        utterance.rate = 0.85;
+        window.speechSynthesis.speak(utterance);
+      }
+    } catch (e) {
+      // ignore
+    }
   };
 
   // Web synthetic acoustic sound effect generator for extreme game touch responsiveness without audio assets
@@ -234,19 +376,20 @@ export default function Games() {
             { id: 'karuta', label: '1. Karuta Kana' },
             { id: 'memory', label: '2. Memory Match' },
             { id: 'particle', label: '3. Particle Runner' },
-            { id: 'sentence', label: '4. Sentence Builder' }
+            { id: 'sentence', label: '4. Sentence Builder' },
+            { id: 'srs_quiz', label: '5. Kuis Spaced-Repetition' }
           ].map(tab => (
             <button
-              key={tab.id}
-              onClick={() => {
-                playBeep(440, 0.1);
-                setActiveGame(tab.id as any);
-              }}
-              className={`px-5 py-3 rounded-full text-xs font-semibold tracking-wider transition-all uppercase cursor-pointer ${
-                activeGame === tab.id 
-                  ? 'bg-white text-slate-900 border border-white font-bold' 
-                  : 'bg-white/5 text-zinc-400 hover:text-white border border-white/5'
-              }`}
+               key={tab.id}
+               onClick={() => {
+                 playBeep(440, 0.1);
+                 setActiveGame(tab.id as any);
+               }}
+               className={`px-5 py-3 rounded-full text-xs font-semibold tracking-wider transition-all uppercase cursor-pointer ${
+                 activeGame === tab.id 
+                   ? 'bg-white text-slate-900 border border-white font-bold' 
+                   : 'bg-white/5 text-zinc-400 hover:text-white border border-white/5'
+               }`}
             >
               {tab.label}
             </button>
@@ -279,13 +422,14 @@ export default function Games() {
                       onClick={() => {
                         playBeep(659.25, 0.35, 'triangle');
                         playBeep(440, 0.2, 'sine');
+                        speakText(karutaTarget.kana);
                       }}
                       className="p-6 rounded-full bg-white/5 hover:bg-white/10 active:scale-95 transition-all text-white border border-white/5 shadow-md flex items-center gap-2 group cursor-pointer"
                     >
                       <Volume2 className="w-7 h-7 text-white/90 group-hover:scale-110 transition-transform" />
                       <span className="font-display text-2xl font-light select-none">Putar Bunyi</span>
                     </button>
-                    <span className="text-[10px] text-zinc-500 italic mt-1">(Suara melafalkan "{karutaTarget.romaji}")</span>
+                    <span className="text-[10px] text-zinc-500 italic mt-1">(Suara melafalkan "{karutaTarget.kana}")</span>
                   </div>
                 </div>
               </div>
@@ -299,6 +443,7 @@ export default function Games() {
                       key={i}
                       onClick={() => {
                         playBeep(330, 0.1);
+                        speakText(opt.kana);
                         handleKarutaAnswer(opt.romaji);
                       }}
                       className="h-28 rounded-2xl bg-white/3 border border-white/10 hover:border-white/20 hover:bg-white/5 text-white active:scale-95 transition-all flex flex-col items-center justify-center gap-1 cursor-pointer font-display"
@@ -408,10 +553,15 @@ export default function Games() {
                 </div>
 
                 {/* Sentence Question Display */}
-                <div className="text-center py-6 bg-slate-950/20 rounded-2xl border border-white/5 my-4">
-                  <p className="text-xs text-zinc-500 uppercase tracking-widest font-mono mb-2">Pilih Partikel Pelengkap:</p>
-                  <h3 className="text-3xl sm:text-4xl text-white font-medium tracking-wide mb-3">
-                    {currentParticleQ.sentence}
+                <div 
+                  onClick={() => speakText(currentParticleQ.sentence.replace('___', ' '))}
+                  className="text-center py-6 bg-slate-950/20 hover:bg-slate-950/40 hover:border-indigo-500/30 transition-all cursor-pointer rounded-2xl border border-white/5 my-4 group"
+                  title="Klik untuk melafalkan kalimat"
+                >
+                  <p className="text-xs text-zinc-500 uppercase tracking-widest font-mono mb-2">Pilih Partikel Pelengkap (Klik untuk Suara)</p>
+                  <h3 className="text-3xl sm:text-4xl text-white font-medium tracking-wide mb-3 hover:text-yellow-350 transition-colors flex items-center justify-center gap-1.5">
+                    <span>{currentParticleQ.sentence}</span>
+                    <Volume2 className="w-5 h-5 text-zinc-500 hover:text-white shrink-0 inline animate-pulse" />
                   </h3>
                   <p className="text-sm font-light italic text-zinc-400">
                     "{currentParticleQ.translation}"
@@ -442,6 +592,7 @@ export default function Games() {
                         key={i}
                         onClick={() => {
                           playBeep(opt === currentParticleQ.correctAnswer ? 523.25 : 180, 0.15);
+                          speakText(currentParticleQ.sentence.replace('___', opt));
                           handleParticleAnswer(opt);
                         }}
                         disabled={!!particleSelected}
@@ -539,6 +690,7 @@ export default function Games() {
                         key={i}
                         onClick={() => {
                           playBeep(450, 0.08);
+                          speakText(word);
                           toggleWord(word, 'scrambled');
                         }}
                         className="bg-zinc-900 hover:bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-sm text-zinc-300 hover:text-white transition-all cursor-pointer flex items-center justify-center select-none"
@@ -594,6 +746,170 @@ export default function Games() {
                   </div>
                 </div>
 
+              </div>
+            </div>
+          )}
+
+          {activeGame === 'srs_quiz' && (
+            <div id="game-srs-panel" className="space-y-6 flex-1 flex flex-col justify-between">
+              <div>
+                <div className="flex justify-between items-center mb-6">
+                  <div className="text-xs uppercase tracking-wider text-zinc-400 font-light flex items-center gap-2">
+                    <GraduationCap className="w-4 h-4 text-amber-400 animate-pulse" />
+                    Spaced-Repetition Quiz (Review Kata Salah)
+                  </div>
+                  <div className="text-xs bg-white/5 border border-white/5 px-3 py-1 rounded-full text-zinc-300">
+                    Sisa Antrean: <span className="font-mono font-bold text-amber-350">{srsPool.length} item</span>
+                  </div>
+                </div>
+
+                {srsPool.length === 0 ? (
+                  <div className="text-center py-10 space-y-4">
+                    <Sparkles className="w-12 h-12 text-yellow-400 mx-auto animate-bounce mb-2" />
+                    <h3 className="text-xl font-display text-white">Keranjang Memorimu Bersih! 🌸</h3>
+                    <p className="text-xs text-zinc-400 font-sans max-w-sm mx-auto leading-relaxed">
+                      Luar biasa! Tidak ada kata yang salah atau semua memori sedang dalam kondisi matang (belum memasuki jadwal review).
+                    </p>
+                    <p className="text-[11px] text-zinc-500 font-sans max-w-xs mx-auto">
+                      Mainkan game Karuta, Memory Match, Particle, atau Speedrun Blitz di Kelas Pro untuk mendeteksi kelemahan belajarmu!
+                    </p>
+                    <button
+                      onClick={() => {
+                        playBeep(220, 0.1);
+                        resetSrsDatabase();
+                        setSrsHistoryVersion(prev => prev + 1);
+                      }}
+                      className="mt-4 px-4 py-2 border border-white/5 rounded-xl text-zinc-500 hover:text-white hover:bg-white/5 text-[10px] uppercase font-bold tracking-wider cursor-pointer transition-all"
+                    >
+                      Reset Riwayat Deteksi Kesalahan
+                    </button>
+                  </div>
+                ) : (() => {
+                  const currentItem = srsPool[srsIndex];
+                  if (!currentItem) return null;
+                  
+                  return (
+                    <div className="space-y-6">
+                      <div className="flex items-center justify-between text-[11px] font-sans text-zinc-500">
+                        <span className="uppercase tracking-wider">
+                          Tantangan {srsIndex + 1} dari {srsPool.length} (Tipe: {currentItem.type.toUpperCase()})
+                        </span>
+                        <div className="flex gap-2">
+                          <span className="bg-amber-400/10 text-amber-300 px-2 py-0.5 rounded-md font-mono text-[10px]">
+                            Box Leitner: {currentItem.box} / 5
+                          </span>
+                          <span className="bg-rose-500/10 text-rose-400 px-2 py-0.5 rounded-md font-mono text-[10px]">
+                            Tingkat Salah: {currentItem.mistakeCount}x
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="bg-zinc-950/40 p-6 rounded-2xl border border-white/5 text-center relative overflow-hidden">
+                        <span className="text-[10px] uppercase font-semibold text-zinc-500 tracking-wider block">Pertanyaan / Kata Target:</span>
+                        <h4 className="text-3xl font-display font-semibold text-white mt-2 select-text">
+                          {currentItem.question}
+                        </h4>
+                        {currentItem.translation && (
+                          <p className="text-xs text-zinc-400 mt-2 font-serif italic">"{currentItem.translation}"</p>
+                        )}
+                        
+                        <button
+                          onClick={() => {
+                            playBeep(330, 0.1);
+                            speakText(currentItem.question);
+                          }}
+                          className="absolute right-3 top-3 p-1.5 rounded-full hover:bg-white/10 text-zinc-500 hover:text-white transition-all cursor-pointer"
+                          title="Lafalkan (TTS)"
+                        >
+                          <Volume2 className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {srsOptions.map((opt, i) => {
+                          const isSelected = srsSelectedOpt === opt;
+                          const isCorrect = opt === currentItem.correct;
+                          
+                          let btnClass = "bg-zinc-900 border border-white/5 text-zinc-300 hover:border-white/20 hover:text-white";
+                          if (srsSubmitted) {
+                            if (isCorrect) {
+                              btnClass = "bg-emerald-500/15 border-emerald-500/30 text-emerald-400 font-bold scale-[1.01]";
+                            } else if (isSelected) {
+                              btnClass = "bg-rose-500/15 border-rose-500/30 text-rose-400";
+                            } else {
+                              btnClass = "bg-zinc-950/40 border-white/2 text-zinc-650 opacity-40";
+                            }
+                          } else if (isSelected) {
+                            btnClass = "bg-white text-slate-950 border-white font-bold scale-[1.01]";
+                          }
+
+                          return (
+                            <button
+                              key={i}
+                              disabled={srsSubmitted}
+                              onClick={() => {
+                                playBeep(520, 0.08);
+                                setSrsSelectedOpt(opt);
+                              }}
+                              className={`p-4 rounded-xl text-left text-sm cursor-pointer transition-all flex items-center justify-between ${btnClass}`}
+                            >
+                              <span>{opt}</span>
+                              {srsSubmitted && isCorrect && <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />}
+                              {srsSubmitted && isSelected && !isCorrect && <AlertTriangle className="w-4 h-4 text-rose-450 shrink-0" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-white/5">
+                        <div className="text-left leading-relaxed text-xs">
+                          {srsSubmitted && srsResult === 'correct' && (
+                            <p className="text-emerald-400 font-semibold flex items-center gap-1">
+                              <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                              Luar biasa! Hafalanmu diperkuat dan ditingkatkan ke Box berikutnya.
+                            </p>
+                          )}
+                          {srsSubmitted && srsResult === 'wrong' && (
+                            <div className="space-y-1">
+                              <p className="text-rose-450 font-semibold flex items-center gap-1">
+                                <AlertTriangle className="w-4 h-4 text-rose-450 shrink-0" />
+                                Kurang tepat! Solusi yang benar adalah "{currentItem.correct}".
+                              </p>
+                              {currentItem.explanation && (
+                                <p className="text-zinc-400 text-[10px] italic">📝 {currentItem.explanation}</p>
+                              )}
+                            </div>
+                          )}
+                          {!srsSubmitted && (
+                            <p className="text-[10px] text-zinc-500 font-light">
+                              Pilih solusi pembacaan/partikel tepat, lalu koreksi memorimu.
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="flex gap-2 w-full sm:w-auto shrink-0 justify-end">
+                          {!srsSubmitted ? (
+                            <button
+                              disabled={!srsSelectedOpt}
+                              onClick={handleSrsSubmit}
+                              className="liquid-glass text-xs font-bold uppercase px-6 py-3 rounded-xl text-white hover:scale-105 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                            >
+                              Koreksi Jawaban
+                            </button>
+                          ) : (
+                            <button
+                              onClick={nextSrsQuestion}
+                              className="bg-white text-slate-950 font-bold hover:bg-zinc-200 text-xs font-sans uppercase px-6 py-3 rounded-xl hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center gap-1"
+                            >
+                              Lanjut Kuis
+                              <ArrowRight className="w-3.5 h-3.5 text-slate-950" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           )}

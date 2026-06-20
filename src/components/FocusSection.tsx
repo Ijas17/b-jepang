@@ -71,39 +71,31 @@ export default function FocusSection({ isFocusModeActive, onToggleFocusMode }: F
               </p>
             </div>
 
-            <div className="bg-slate-950/20 p-6 rounded-2xl border border-white/5 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="text-xs font-semibold uppercase tracking-wider text-zinc-300">Sakelar Mode Fokus</h4>
-                  <p className="text-[11px] text-zinc-500 font-light mt-0.5">
-                    {isFocusModeActive ? 'Sedang aktif — Layar sekunder meredup' : 'Meredupkan lobi sekitar halaman'}
-                  </p>
-                </div>
-                
-                {/* Custom toggle slider */}
-                <button
-                  onClick={() => {
-                    triggerAudioTick();
-                    onToggleFocusMode(!isFocusModeActive);
-                  }}
-                  className={`w-12 h-6 rounded-full p-1 transition-colors cursor-pointer outline-none relative flex items-center justify-start ${
-                    isFocusModeActive ? 'bg-white' : 'bg-zinc-800'
-                  }`}
-                >
-                  <div
-                    className={`w-4 h-4 rounded-full transition-transform ${
-                      isFocusModeActive ? 'translate-x-6 bg-slate-950' : 'bg-zinc-400'
-                    }`}
-                  />
-                </button>
+            <div className="bg-slate-950/20 p-6 rounded-2xl border border-white/5 space-y-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-zinc-350">Status Mode Fokus</h4>
+                <p className="text-sm text-white font-medium mt-1">
+                  {isFocusModeActive ? 'Aktif — Layar sekunder sedang meredup' : 'Tidak Aktif — Layar normal'}
+                </p>
+                <p className="text-[11px] text-zinc-500 font-light mt-1">
+                  Membantu mengurangi kelelahan mata saat belajar bahasa Jepang.
+                </p>
               </div>
-
-              {isFocusModeActive && (
-                <div className="text-[11px] text-emerald-400 font-medium flex items-center gap-1 animate-pulse">
-                  <Check className="w-3.5 h-3.5" />
-                  Mode Fokus Aktif. Cahaya redup menyelimuti halaman.
-                </div>
-              )}
+              
+              <button
+                onClick={() => {
+                  triggerAudioTick();
+                  onToggleFocusMode(!isFocusModeActive);
+                }}
+                className={`w-full sm:w-auto px-6 py-3.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2 border hover:scale-102 active:scale-98 ${
+                  isFocusModeActive
+                    ? 'bg-amber-500 text-slate-950 border-amber-400 font-black shadow-lg shadow-amber-500/20'
+                    : 'bg-white/5 border-white/10 text-white hover:bg-white/10'
+                }`}
+              >
+                <Moon className={`w-4 h-4 ${isFocusModeActive ? 'animate-pulse' : ''}`} />
+                {isFocusModeActive ? 'Matikan Mode Fokus' : 'Aktifkan Mode Fokus'}
+              </button>
             </div>
 
             <div className="mt-6 border-t border-white/5 pt-6 text-[11px] text-zinc-500 font-light space-y-2">

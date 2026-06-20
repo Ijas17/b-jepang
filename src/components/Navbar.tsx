@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { Menu, X, Globe, Sparkles } from 'lucide-react';
+import { Menu, X, Globe, Sparkles, Moon } from 'lucide-react';
 
 interface NavbarProps {
   onNavClick: (sectionId: string) => void;
@@ -12,9 +12,19 @@ interface NavbarProps {
   isInsideApp?: boolean;
   onEnterApp?: () => void;
   onExitApp?: () => void;
+  isFocusModeActive?: boolean;
+  onToggleFocusMode?: (val: boolean) => void;
 }
 
-export default function Navbar({ onNavClick, activeSection, isInsideApp, onEnterApp, onExitApp }: NavbarProps) {
+export default function Navbar({ 
+  onNavClick, 
+  activeSection, 
+  isInsideApp, 
+  onEnterApp, 
+  onExitApp,
+  isFocusModeActive,
+  onToggleFocusMode
+}: NavbarProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   const navLinks = isInsideApp ? [] : [
@@ -66,6 +76,21 @@ export default function Navbar({ onNavClick, activeSection, isInsideApp, onEnter
 
         {/* Desktop CTA using liquid-glass */}
         <div id="desktop-cta" className="hidden lg:flex items-center space-x-4">
+          {onToggleFocusMode && (
+            <button
+              onClick={() => onToggleFocusMode(!isFocusModeActive)}
+              title={isFocusModeActive ? 'Matikan Mode Fokus' : 'Aktifkan Mode Fokus'}
+              className={`p-2.5 rounded-full border transition-all cursor-pointer flex items-center justify-center gap-1.5 px-4 text-xs font-semibold ${
+                isFocusModeActive
+                  ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.25)]'
+                  : 'bg-white/5 border-white/10 text-zinc-400 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              <Moon className={`w-4 h-4 ${isFocusModeActive ? 'animate-pulse text-amber-400' : ''}`} />
+              <span>{isFocusModeActive ? 'Fokus Aktif' : 'Mode Fokus'}</span>
+            </button>
+          )}
+
           {isInsideApp ? (
             <button
               onClick={onExitApp}
@@ -112,6 +137,23 @@ export default function Navbar({ onNavClick, activeSection, isInsideApp, onEnter
               </button>
             ))}
             <div className="pt-2 border-t border-white/5 flex flex-col space-y-3">
+              {onToggleFocusMode && (
+                <button
+                  onClick={() => {
+                    onToggleFocusMode(!isFocusModeActive);
+                    setIsOpen(false);
+                  }}
+                  className={`border rounded-full w-full py-3 text-center text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
+                    isFocusModeActive
+                      ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
+                      : 'bg-white/5 border-white/10 text-zinc-300'
+                  }`}
+                >
+                  <Moon className={`w-4 h-4 ${isFocusModeActive ? 'text-amber-400 animate-pulse' : ''}`} />
+                  {isFocusModeActive ? 'Mode Fokus: Aktif' : 'Aktifkan Mode Fokus'}
+                </button>
+              )}
+
               {isInsideApp ? (
                 <button
                   onClick={() => { onExitApp?.(); setIsOpen(false); }}

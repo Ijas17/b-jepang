@@ -125,12 +125,15 @@ export default function App() {
           isInsideApp={isInsideApp}
           onEnterApp={handleEnterApp}
           onExitApp={() => setIsInsideApp(false)}
+          isFocusModeActive={isFocusModeActive}
+          onToggleFocusMode={setIsFocusModeActive}
         />
 
         {isInsideApp ? (
           <Classroom 
             onBackToLanding={() => setIsInsideApp(false)} 
             isFocusModeActive={isFocusModeActive} 
+            onToggleFocusMode={setIsFocusModeActive}
           />
         ) : (
           <>

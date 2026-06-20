@@ -223,6 +223,7 @@ export default function KanjiLibrary({ onTriggerSound, onIncrementStreak, onAddX
 
     const isCorrect = opt === current.meaning;
     setQuizIsCorrect(isCorrect);
+    speakText(current.kanji);
 
     if (isCorrect) {
       playBeep(880);
@@ -363,7 +364,7 @@ export default function KanjiLibrary({ onTriggerSound, onIncrementStreak, onAddX
                     return (
                       <button
                         key={item.kanji}
-                        onClick={() => { playBeep(380); setSelectedKanji(item); }}
+                        onClick={() => { playBeep(380); setSelectedKanji(item); speakText(item.kanji); }}
                         className={`p-3.5 rounded-xl border text-center cursor-pointer transition-all ${
                           isSelected
                             ? 'bg-indigo-500/10 border-indigo-400 text-white shadow'
@@ -701,9 +702,12 @@ export default function KanjiLibrary({ onTriggerSound, onIncrementStreak, onAddX
             </div>
 
             {/* Prompt Card */}
-            <div className="bg-white/3 border border-white/5 rounded-3xl p-8 text-center space-y-4">
-              <span className="text-[10px] text-indigo-400 uppercase tracking-widest font-extrabold block">Tebak Arti Makna Huruf Kanji Ini</span>
-              <span className="text-8xl font-display text-white block select-none filter drop-shadow-[0_0_15px_rgba(255,255,255,0.05)]">
+            <div 
+              onClick={() => speakText(current.kanji)}
+              className="bg-white/3 hover:bg-white/5 cursor-pointer hover:border-indigo-500/20 active:scale-[0.99] border border-white/5 rounded-3xl p-8 text-center space-y-4 transition-all group"
+            >
+              <span className="text-[10px] text-indigo-400 uppercase tracking-widest font-extrabold block">Tebak Arti Makna Huruf Kanji Ini (Klik untuk Suara)</span>
+              <span className="text-8xl font-display text-white block select-none filter drop-shadow-[0_0_15px_rgba(255,255,255,0.05)] group-hover:text-yellow-350 transition-colors">
                 {current.kanji}
               </span>
 
@@ -713,7 +717,10 @@ export default function KanjiLibrary({ onTriggerSound, onIncrementStreak, onAddX
                   <span>Kun-yomi: <strong>{current.kunyomi}</strong></span>
                 </div>
                 <button
-                  onClick={() => speakText(current.kanji)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    speakText(current.kanji);
+                  }}
                   className="p-1 px-3 bg-white/5 hover:bg-white/10 border border-white/5 rounded-full transition-all cursor-pointer text-zinc-300 inline-flex items-center gap-1.5 text-[10px]"
                 >
                   <Volume2 className="w-3.5 h-3.5" /> Putar Bunyi
