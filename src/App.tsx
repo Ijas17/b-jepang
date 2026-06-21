@@ -206,57 +206,57 @@ export function MainApp() {
           onToggleFocusMode={setIsFocusModeActive}
         />
 
-        {isInsideApp ? (
+        {isInsideApp && (
           <Classroom 
             onBackToLanding={() => setIsInsideApp(false)} 
             isFocusModeActive={isFocusModeActive} 
             onToggleFocusMode={setIsFocusModeActive}
           />
-        ) : (
-          <>
-            {/* Home/Hero Section */}
-            <div id="home">
-              <Hero 
-                onStartClick={() => handleNavClick('roadmap')} 
-                onExplorationClick={() => handleNavClick('keunggulan')} 
-                onEnterApp={handleEnterApp}
-              />
-            </div>
-
-            {/* Section Features / Keunggulan Utama */}
-            <div id="keunggulan">
-              <Features />
-            </div>
-
-            {/* Section Roadmap 8 Fase */}
-            <div id="roadmap">
-              <Roadmap />
-            </div>
-
-            {/* Section Game Edukasi Interaktif */}
-            <div id="game">
-              <Games />
-            </div>
-
-            {/* Section Playlist Audio Pendukung */}
-            <div id="playlist">
-              <Playlist />
-            </div>
-
-            {/* Section Suasana Belajar / Mode Fokus */}
-            <div id="fokus">
-              <FocusSection 
-                isFocusModeActive={isFocusModeActive} 
-                onToggleFocusMode={setIsFocusModeActive} 
-              />
-            </div>
-
-            {/* Section Onboarding / Peta Rencana Belajar personal */}
-            <div id="onboarding">
-              <CTASection onOnboardingComplete={() => setIsInsideApp(true)} />
-            </div>
-          </>
         )}
+
+        <div className={isInsideApp ? "hidden" : "block"}>
+          {/* Home/Hero Section */}
+          <div id="home">
+            <Hero 
+              onStartClick={() => handleNavClick('roadmap')} 
+              onExplorationClick={() => handleNavClick('keunggulan')} 
+              onEnterApp={handleEnterApp}
+            />
+          </div>
+
+          {/* Section Features / Keunggulan Utama */}
+          <div id="keunggulan">
+            <Features />
+          </div>
+
+          {/* Section Roadmap 8 Fase */}
+          <div id="roadmap">
+            <Roadmap />
+          </div>
+
+          {/* Section Game Edukasi Interaktif */}
+          <div id="game">
+            <Games />
+          </div>
+
+          {/* Section Playlist Audio Pendukung */}
+          <div id="playlist">
+            <Playlist />
+          </div>
+
+          {/* Section Suasana Belajar / Mode Fokus */}
+          <div id="fokus">
+            <FocusSection 
+              isFocusModeActive={isFocusModeActive} 
+              onToggleFocusMode={setIsFocusModeActive} 
+            />
+          </div>
+
+          {/* Section Onboarding / Peta Rencana Belajar personal */}
+          <div id="onboarding">
+            <CTASection onOnboardingComplete={() => setIsInsideApp(true)} />
+          </div>
+        </div>
 
         {/* Global sticky media player hub */}
         <GlobalFloatingPlayer />

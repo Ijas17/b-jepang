@@ -13,6 +13,7 @@ import { UNGKAPAN_KELAS_SALAM, VOCABULARY_DATA, PARTICLE_QUESTIONS, SENTENCE_PUZ
 import { ALL_LESSONS } from '../data/lessonsData';
 import { VOCABULARY_DATABASE } from '../data/vocabulary';
 import { KANA_DATA } from '../data/kana';
+import { THEMATIC_VOCABULARY } from '../data/thematicVocab';
 import { lessons } from '../data/curriculum';
 import KanaTrainer from './KanaTrainer';
 import KanjiLibrary from './KanjiLibrary';
