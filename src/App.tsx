@@ -16,6 +16,7 @@ import Classroom from './components/Classroom';
 import { Volume2, Sparkles, BookOpen, Smile, ShieldAlert, Flame } from 'lucide-react';
 import { MusicProvider } from './contexts/MusicContext';
 import GlobalFloatingPlayer from './components/GlobalFloatingPlayer';
+import { motion, AnimatePresence } from 'motion/react';
 
 export function MainApp() {
   const [activeSection, setActiveSection] = useState('home');
@@ -206,57 +207,75 @@ export function MainApp() {
           onToggleFocusMode={setIsFocusModeActive}
         />
 
-        {isInsideApp && (
-          <Classroom 
-            onBackToLanding={() => setIsInsideApp(false)} 
-            isFocusModeActive={isFocusModeActive} 
-            onToggleFocusMode={setIsFocusModeActive}
-          />
-        )}
+        <AnimatePresence mode="wait">
+          {isInsideApp ? (
+            <motion.div
+              key="classroom-view"
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
+              className="relative z-10 w-full flex-grow flex flex-col"
+            >
+              <Classroom 
+                onBackToLanding={() => setIsInsideApp(false)} 
+                isFocusModeActive={isFocusModeActive} 
+                onToggleFocusMode={setIsFocusModeActive}
+              />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="landing-view"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+              className="w-full flex-grow flex flex-col"
+            >
+              {/* Home/Hero Section */}
+              <div id="home">
+                <Hero 
+                  onStartClick={() => handleNavClick('roadmap')} 
+                  onExplorationClick={() => handleNavClick('keunggulan')} 
+                  onEnterApp={handleEnterApp}
+                />
+              </div>
 
-        <div className={isInsideApp ? "hidden" : "block"}>
-          {/* Home/Hero Section */}
-          <div id="home">
-            <Hero 
-              onStartClick={() => handleNavClick('roadmap')} 
-              onExplorationClick={() => handleNavClick('keunggulan')} 
-              onEnterApp={handleEnterApp}
-            />
-          </div>
+              {/* Section Features / Keunggulan Utama */}
+              <div id="keunggulan">
+                <Features />
+              </div>
 
-          {/* Section Features / Keunggulan Utama */}
-          <div id="keunggulan">
-            <Features />
-          </div>
+              {/* Section Roadmap 8 Fase */}
+              <div id="roadmap">
+                <Roadmap />
+              </div>
 
-          {/* Section Roadmap 8 Fase */}
-          <div id="roadmap">
-            <Roadmap />
-          </div>
+              {/* Section Game Edukasi Interaktif */}
+              <div id="game">
+                <Games />
+              </div>
 
-          {/* Section Game Edukasi Interaktif */}
-          <div id="game">
-            <Games />
-          </div>
+              {/* Section Playlist Audio Pendukung */}
+              <div id="playlist">
+                <Playlist />
+              </div>
 
-          {/* Section Playlist Audio Pendukung */}
-          <div id="playlist">
-            <Playlist />
-          </div>
+              {/* Section Suasana Belajar / Mode Fokus */}
+              <div id="fokus">
+                <FocusSection 
+                  isFocusModeActive={isFocusModeActive} 
+                  onToggleFocusMode={setIsFocusModeActive} 
+                />
+              </div>
 
-          {/* Section Suasana Belajar / Mode Fokus */}
-          <div id="fokus">
-            <FocusSection 
-              isFocusModeActive={isFocusModeActive} 
-              onToggleFocusMode={setIsFocusModeActive} 
-            />
-          </div>
-
-          {/* Section Onboarding / Peta Rencana Belajar personal */}
-          <div id="onboarding">
-            <CTASection onOnboardingComplete={() => setIsInsideApp(true)} />
-          </div>
-        </div>
+              {/* Section Onboarding / Peta Rencana Belajar personal */}
+              <div id="onboarding">
+                <CTASection onOnboardingComplete={() => setIsInsideApp(true)} />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Global sticky media player hub */}
         <GlobalFloatingPlayer />

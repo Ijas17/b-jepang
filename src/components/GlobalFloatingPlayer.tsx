@@ -28,11 +28,23 @@ export default function GlobalFloatingPlayer() {
     playTrack,
     youtubeTracks,
     showVideoMonitor,
-    setShowVideoMonitor
+    setShowVideoMonitor,
+    currentTime,
+    duration,
+    seekTo
   } = useMusic();
 
   const [isOpen, setIsOpen] = useState(false);
   const activeTrack = youtubeTracks[currentTrackIndex] || youtubeTracks[0];
+
+  const formatTime = (secs: number) => {
+    if (isNaN(secs) || secs < 0) return '0:00';
+    const minutes = Math.floor(secs / 60);
+    const seconds = Math.floor(secs % 60);
+    return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+  };
+
+  const isLive = duration <= 0 || duration > 43200; // Over 12 hours is treated as live lo-fi radio
 
   return (
     <div id="global-floating-player-widget" className="fixed bottom-6 right-6 z-[80] font-sans">
@@ -121,6 +133,48 @@ export default function GlobalFloatingPlayer() {
                 <span className="text-[10px] text-zinc-400 block truncate font-light leading-none">
                   Source: YouTube Stream
                 </span>
+              </div>
+
+              {/* Progress Bar Visual yang Halus */}
+              <div className="space-y-1 pt-1">
+                <div 
+                  className="h-1 w-full bg-white/10 rounded-full overflow-hidden relative cursor-pointer group"
+                  onClick={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const clickX = e.clientX - rect.left;
+                    const percent = clickX / rect.width;
+                    if (duration > 0 && !isLive) {
+                      seekTo(percent * duration);
+                    }
+                  }}
+                  title={isLive ? "Live Stream (Tidak bisa digeser)" : "Klik untuk melompati durasi"}
+                >
+                  <div 
+                    className={`h-full rounded-full transition-all duration-150 ease-out ${
+                      isLive ? 'bg-amber-500 animate-pulse' : 'bg-amber-500'
+                    }`}
+                    style={{ width: isLive ? '100%' : `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+                  />
+                </div>
+                <div className="flex items-center justify-between text-[8px] font-mono tracking-wider text-zinc-550 uppercase">
+                  <span className="flex items-center gap-1.5">
+                    {isLive ? (
+                      <>
+                        <span className="w-1 h-1 rounded-full bg-red-500 animate-pulse inline-block" />
+                        <span className="text-red-400 font-bold">LIVE STREAM</span>
+                      </>
+                    ) : (
+                      <span className="text-zinc-400">{formatTime(currentTime)}</span>
+                    )}
+                  </span>
+                  <span>
+                    {isLive ? (
+                      <span className="text-zinc-500">ONLINE LOOPS</span>
+                    ) : (
+                      <span className="text-zinc-400">{formatTime(duration)}</span>
+                    )}
+                  </span>
+                </div>
               </div>
 
               {/* Micro-controls (Play/Pause + Volume slider) */}

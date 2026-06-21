@@ -34,6 +34,9 @@ interface MusicContextType {
   ytApiReady: boolean;
   showVideoMonitor: boolean;
   setShowVideoMonitor: (val: boolean) => void;
+  currentTime: number;
+  duration: number;
+  seekTo: (seconds: number) => void;
 }
 
 const MusicContext = createContext<MusicContextType | undefined>(undefined);
@@ -57,6 +60,15 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
 
   // Menyimpan tracks youtube kustom di LocalStorage agar tidak hilang saat reload halaman
   const [youtubeTracks, setYoutubeTracks] = useState<YouTubeTrack[]>([]);
+
+  const [currentTime, setCurrentTime] = useState<number>(0);
+  const [duration, setDuration] = useState<number>(0);
+
+  // Reset progress states on track change
+  useEffect(() => {
+    setCurrentTime(0);
+    setDuration(0);
+  }, [currentTrackIndex]);
 
   const animationRef = useRef<number | null>(null);
 
@@ -166,6 +178,13 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
           if (msg.info.playerState === 0) {
             playNextRef.current();
           }
+
+          if (typeof msg.info.currentTime === 'number') {
+            setCurrentTime(msg.info.currentTime);
+          }
+          if (typeof msg.info.duration === 'number') {
+            setDuration(msg.info.duration);
+          }
         }
       } catch (e) {
         // Mengabaikan parse non-JSON biasa
@@ -177,6 +196,38 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener('message', handleMessage);
     };
   }, []);
+
+  // Sinkronisasi dan interpolasi waktu putar lokal yang sangat halus (smooth ticking)
+  useEffect(() => {
+    if (!isPlaying) return;
+
+    // Mengakselerasi estimasi waktu kustom setiap 100ms demi progress bar yang mulus (10fps)
+    const tickInterval = setInterval(() => {
+      setCurrentTime((prev) => {
+        if (duration > 0 && prev >= duration) {
+          return duration;
+        }
+        return prev + 0.1;
+      });
+    }, 100);
+
+    // Meminta update resmi dari Youtube API setiap 1.5 detik agar kinerjanya tetap sinkron & presisi
+    const pollInterval = setInterval(() => {
+      sendPlayerCommand('getCurrentTime');
+      sendPlayerCommand('getDuration');
+    }, 1500);
+
+    return () => {
+      clearInterval(tickInterval);
+      clearInterval(pollInterval);
+    };
+  }, [isPlaying, duration]);
+
+  // Melakukan lompatan waktu (seek) di pemutar YouTube
+  const seekTo = (seconds: number) => {
+    sendPlayerCommand('seekTo', [seconds, true]);
+    setCurrentTime(seconds);
+  };
 
   // Fungsi menambah tautan YouTube baru (Maksimal 5)
   const addYoutubeLink = async (url: string) => {
@@ -339,7 +390,10 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
         isAddingYt,
         ytApiReady: true, // Dipaksa true karena memakai API postMessage bawaan yang selalu siap
         showVideoMonitor,
-        setShowVideoMonitor
+        setShowVideoMonitor,
+        currentTime,
+        duration,
+        seekTo
       }}
     >
       {children}

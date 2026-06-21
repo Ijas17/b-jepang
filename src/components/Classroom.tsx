@@ -9,6 +9,7 @@ import {
   Sparkles, RotateCcw, ArrowLeft, Clock, Brain, AlertTriangle, ShieldCheck, Trophy, Globe, Flame, Lock, HelpCircle,
   Search, Languages, LayoutDashboard, Plus, Minus, Layers, Moon
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { UNGKAPAN_KELAS_SALAM, VOCABULARY_DATA, PARTICLE_QUESTIONS, SENTENCE_PUZZLES } from '../data';
 import { ALL_LESSONS } from '../data/lessonsData';
 import { VOCABULARY_DATABASE } from '../data/vocabulary';
@@ -951,10 +952,19 @@ export default function Classroom({ onBackToLanding, isFocusModeActive, onToggle
         ))}
       </div>
 
-      {/* ======================================================== */}
-      {/* MODULE 0: DASHBOARD KELAS PRO & COMPLETION PERCENTAGE */}
-      {/* ======================================================== */}
-      {activeTab === 'dashboard' && (() => {
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={activeTab}
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+          className="focus:outline-none"
+        >
+          {/* ======================================================== */}
+          {/* MODULE 0: DASHBOARD KELAS PRO & COMPLETION PERCENTAGE */}
+          {/* ======================================================== */}
+          {activeTab === 'dashboard' && (() => {
         // Calculate average completion rate dynamically across all 25 lessons
         let totalCompletionVal = 0;
         for (let i = 1; i <= 25; i++) {
@@ -3361,6 +3371,8 @@ export default function Classroom({ onBackToLanding, isFocusModeActive, onToggle
           </div>
         </div>
       )}
+        </motion.div>
+      </AnimatePresence>
 
     </div>
   );
