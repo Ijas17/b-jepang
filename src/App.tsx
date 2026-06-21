@@ -17,6 +17,7 @@ import { Volume2, Sparkles, BookOpen, Smile, ShieldAlert, Flame } from 'lucide-r
 import { MusicProvider } from './contexts/MusicContext';
 import GlobalFloatingPlayer from './components/GlobalFloatingPlayer';
 import { motion, AnimatePresence } from 'motion/react';
+import { trackEvent } from './utils/analytics';
 
 export function MainApp() {
   const [activeSection, setActiveSection] = useState('home');
@@ -72,6 +73,7 @@ export function MainApp() {
         const parsed = JSON.parse(saved);
         if (parsed.completed) {
           setIsInsideApp(true);
+          trackEvent('enter_classroom_success', 'engagement', 'already_onboarded');
           return;
         }
       }
@@ -81,6 +83,7 @@ export function MainApp() {
     const onboardingEl = document.getElementById('onboarding');
     if (onboardingEl) {
       onboardingEl.scrollIntoView({ behavior: 'smooth' });
+      trackEvent('enter_classroom_prevented_onboarding', 'engagement', 'needs_onboarding');
       // Dispatch a custom event to highlight or focus on the name field
       window.dispatchEvent(new Event('ruka_onboarding_scroll_highlight'));
     }
@@ -89,6 +92,7 @@ export function MainApp() {
   // Smooth scroll handler which aligns perfectly with modern multi-view SPAs
   const handleNavClick = (sectionId: string) => {
     setActiveSection(sectionId);
+    trackEvent('navigate_section', 'navigation', sectionId);
     const element = document.getElementById(sectionId);
     if (element) {
       element.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -271,7 +275,10 @@ export function MainApp() {
 
               {/* Section Onboarding / Peta Rencana Belajar personal */}
               <div id="onboarding">
-                <CTASection onOnboardingComplete={() => setIsInsideApp(true)} />
+                <CTASection onOnboardingComplete={() => {
+                  setIsInsideApp(true);
+                  trackEvent('onboarding_completed', 'engagement', 'new_user');
+                }} />
               </div>
             </motion.div>
           )}
