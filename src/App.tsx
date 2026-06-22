@@ -189,7 +189,7 @@ export function MainApp() {
           <div id="welcome-banner" className="bg-white/10 backdrop-blur-md border-b border-white/5 py-3.5 px-6 text-center relative z-20 flex items-center justify-center gap-3 animate-fade-rise text-zinc-200 text-xs sm:text-sm font-light select-none">
             <span className="flex items-center gap-1.5">
               <Sparkles className="w-4 h-4 text-yellow-300 animate-spin" />
-              Selamat Datang di <strong>RukaaIjass</strong> — Mulai belajar bahasa Jepang dengan kurikulum Minna no Nihongo hari ini!
+              Selamat Datang di <strong>RukaaClass</strong> — Mulai belajar bahasa Jepang dengan kurikulum Minna no Nihongo hari ini!
             </span>
             <button 
               onClick={() => setWelcomeTip(false)}

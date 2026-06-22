@@ -366,7 +366,7 @@ export default function Games() {
           </h2>
           <p className="text-zinc-300 font-light text-sm sm:text-base leading-relaxed">
             Mainkan langsung kuis demonstrasi di bawah ini untuk merasakan metode belajar asyik 
-            dan tidak membosankan dari RukaaIjass.
+            dan tidak membosankan dari RukaaClass.
           </p>
         </div>
 

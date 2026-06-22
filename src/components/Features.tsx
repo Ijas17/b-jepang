@@ -85,7 +85,7 @@ export default function Features() {
             karakter indah, dan tata krama bertutur harian yang bisa dikuasai siapapun secara sabar."
           </h4>
           <span className="text-xs font-semibold tracking-widest uppercase text-white">
-            — Kurikulum Utama RukaaIjass
+            — Kurikulum Utama RukaaClass
           </span>
         </div>
 

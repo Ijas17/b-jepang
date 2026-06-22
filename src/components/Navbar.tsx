@@ -53,7 +53,7 @@ export default function Navbar({
           onClick={() => handleLinkClick('home')}
           className="text-3xl tracking-tight font-display text-white cursor-pointer select-none font-normal hover:opacity-90 active:scale-95 transition-all"
         >
-          RukaaIjass
+          RukaaClass
         </div>
 
         {/* Desktop Links */}

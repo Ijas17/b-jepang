@@ -83,7 +83,7 @@ export const ROADMAP_DATA: RoadmapPhase[] = [
       "Pembedaan kata nominal & verba sesuai situasi",
       "Penggunaan kata sambung (から, が, そして)"
     ],
-    lessonReferences: ["Kamus Tematik RukaaIjass"]
+    lessonReferences: ["Kamus Tematik RukaaClass"]
   },
   {
     id: 6,

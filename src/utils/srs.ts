@@ -1,5 +1,5 @@
 /**
- * Spaced Repetition System (SRS) for RukaaIjass
+ * Spaced Repetition System (SRS) for RukaaClass
  * Uses a Leitner system with exponential time offsets.
  */
 

@@ -761,7 +761,7 @@ export default function Classroom({ onBackToLanding, isFocusModeActive, onToggle
     // Level 1: easy, multiplier 1.0, 45 seconds
     // Level 2: medium, multiplier 1.4, 30 seconds
     // Level 3: hard, multiplier 2.0, 20 seconds
-    // Level 4: autis/insane speed blitz, multiplier 3.0, 12 seconds
+    // Level 4: insane/blitz speed, multiplier 3.0, 12 seconds
     const speed = level === 1 ? 1.0 : level === 2 ? 1.4 : level === 3 ? 2.0 : 3.0;
     const initialTime = level === 1 ? 45 : level === 2 ? 30 : level === 3 ? 20 : 12;
 
@@ -889,7 +889,7 @@ export default function Classroom({ onBackToLanding, isFocusModeActive, onToggle
               RUANG BELAJAR AKTIF
             </span>
             <h1 className="text-2xl sm:text-3xl font-display text-white select-none leading-none">
-              Aplikasi Kelas RukaaIjass
+              Aplikasi Kelas RukaaClass
             </h1>
           </div>
         </div>
@@ -3314,17 +3314,17 @@ export default function Classroom({ onBackToLanding, isFocusModeActive, onToggle
       )}
 
       {/* ======================================================== */}
-      {/* MODULE 4: AUTIS-SUPPORTIVE LEARNING GUIDELINE TABLE */}
+      {/* MODULE 4: PEDAGOGICAL LEARNING GUIDELINE TABLE */}
       {/* ======================================================== */}
       {activeTab === 'tips' && (
         <div id="classroom-tips-module" className="animate-fade-rise space-y-6">
           <div className="liquid-glass rounded-3xl p-6 sm:p-8 border border-white/5 space-y-6">
             
             <div className="border-b border-white/5 pb-5">
-              <h3 className="text-2xl font-display text-white">Panduan Pembelajaran Spesial</h3>
+              <h3 className="text-2xl font-display text-white">Panduan Metode Belajar Inklusif & Efektif</h3>
               <p className="text-xs text-zinc-400 font-sans font-light mt-1">
-                Kiat asuh & penyampaian materi bahasa Jepang khusus untuk anak asuh autisme, 
-                neurodivergen, maupun kesiapan memperoleh visa SSW (Tokutei Ginou) / JLPT N4.
+                Kiat terstruktur & metode penyampaian materi bahasa Jepang khusus untuk pembelajaran inklusif, 
+                gaya belajar terfokus, maupun kesiapan memperoleh visa SSW (Tokutei Ginou) / JLPT N4.
               </p>
             </div>
 
@@ -3332,15 +3332,15 @@ export default function Classroom({ onBackToLanding, isFocusModeActive, onToggle
               
               <div className="bg-white/3 p-6 rounded-2xl border border-white/5 space-y-3">
                 <span className="text-[10px] bg-cyan-500/10 border border-cyan-500/10 rounded-full px-2.5 py-1 text-cyan-300 uppercase tracking-widest font-extrabold inline-block">
-                  Aids Pendamping Autisme
+                  Metode Pendamping Pembelajaran Profesional
                 </span>
                 <p className="text-sm text-zinc-200 font-medium">1. Instruksi Satuan & Mini Langkah (Micro-stepping)</p>
                 <p className="text-xs text-zinc-400 font-light leading-relaxed">
-                  Bagi anak-anak dengan spektrum autisme, hindari memberikan instruksi majemuk. Pecah satu bab menjadi unit kecil (misal: hafal 3 huruf hiragana saja per sesi).
+                  Untuk memaksimalkan fokus dan daya ingat, hindari memberikan instruksi majemuk secara langsung. Pecah materi menjadi unit-unit kecil mandiri (misal: pelajari 3 kosakata atau huruf hiragana saja per sesi belajar).
                 </p>
                 <p className="text-sm text-zinc-200 font-medium pt-2">2. Gunakan Tik Suara Sensorik</p>
                 <p className="text-xs text-zinc-400 font-light leading-relaxed">
-                  Web-app RukaaIjass memancarkan nada gelombang sinus setiap kali intervensi klik ditekan, memperkuat respon stimulasi positif otot memori.
+                  Web-app RukaaClass memancarkan nada gelombang sinus setiap kali intervensi klik ditekan, memperkuat respon stimulasi positif otot memori.
                 </p>
               </div>
 
@@ -3364,7 +3364,7 @@ export default function Classroom({ onBackToLanding, isFocusModeActive, onToggle
               <Smile className="w-10 h-10 text-white/90 mx-auto" />
               <h4 className="text-lg font-display text-white font-normal">"Guru yang sabar adalah guru yang bersedia mengulang seribu kali dengan senyum yang sama."</h4>
               <p className="text-xs text-zinc-400 font-light font-sans tracking-wide">
-                RukaaIjass didesain dengan kejernihan maksimal demi mewujudkan impian kelancaran harian Anda.
+                RukaaClass didesain dengan kejernihan maksimal demi mewujudkan impian kelancaran harian Anda.
               </p>
             </div>
 

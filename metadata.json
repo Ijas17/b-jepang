@@ -1,5 +1,5 @@
 {
-  "name": "RukaaIjass",
+  "name": "RukaaClass",
   "description": "Platform interaktif belajar Bahasa Jepang dari Nol sampai Lancar Harian bersertifikasi kurikulum Minna no Nihongo, dilengkapi mini-game edukasi interaktif dan playlist belajar yang menenangkan.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

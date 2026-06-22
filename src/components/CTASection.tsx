@@ -567,7 +567,7 @@ export default function CTASection({ onOnboardingComplete }: CTASectionProps) {
                 <h4 className="text-lg font-display text-white font-normal">Hasil Peta Rencana Menanti</h4>
                 <p className="text-xs text-zinc-500 font-light max-w-xs leading-relaxed">
                   Isi formulir dan ketuk tombol di samping untuk menghasilkan rekomendasi dan 
-                  metodologi belajar personal dari RukaaIjass.
+                  metodologi belajar personal dari RukaaClass.
                 </p>
               </div>
             )}
@@ -577,7 +577,7 @@ export default function CTASection({ onOnboardingComplete }: CTASectionProps) {
 
         {/* Brand foot text */}
         <div className="mt-20 border-t border-white/5 pt-8 text-xs text-zinc-650 font-normal">
-          <p>© 2026 — RukaaIjass. Menyambut Masa Depan Belajar Bahasa Jepang Tanpa Rasa Takut.</p>
+          <p>© 2026 — RukaaClass. Menyambut Masa Depan Belajar Bahasa Jepang Tanpa Rasa Takut.</p>
         </div>
 
       </div>
